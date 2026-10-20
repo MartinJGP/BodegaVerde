@@ -1,0 +1,248 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// usuarios del sistema
+model Usuario {
+  id           Int      @id @default(autoincrement())
+  nombre       String
+  email        String   @unique
+  passwordHash String
+  rol          Rol
+  activo       Boolean  @default(true)
+  
+  pedidos      Pedido[]
+  movimientos  KardexMovimiento[]
+  compras      OrdenCompra[]
+
+  @@map("usuarios")
+}
+
+enum Rol {
+  ADMIN
+  MESERO
+  COCINERO
+}
+
+// mesas del local
+model Mesa {
+  id        Int      @id @default(autoincrement())
+  numero    Int      @unique
+  capacidad Int
+  estado    EstadoMesa @default(DISPONIBLE)
+  
+  pedidos   Pedido[]
+
+  @@map("mesas")
+}
+
+enum EstadoMesa {
+  DISPONIBLE
+  OCUPADA
+  EN_PAGO
+}
+
+// categorias de la carta
+model Categoria {
+  id          Int     @id @default(autoincrement())
+  nombre      String
+  descripcion String?
+  
+  platos      Plato[]
+
+  @@map("categorias")
+}
+
+// platos de la carta
+model Plato {
+  id          Int      @id @default(autoincrement())
+  categoriaId Int
+  nombre      String
+  precio      Decimal  @db.Decimal(10, 2)
+  descripcion String?
+  activo      Boolean  @default(true)
+  
+  categoria   Categoria @relation(fields: [categoriaId], references: [id])
+  receta      RecetaDetalle[]
+  pedidos     PedidoDetalle[]
+
+  @@map("platos")
+}
+
+// ficha tecnica (receta)
+model RecetaDetalle {
+  id                Int     @id @default(autoincrement())
+  platoId           Int
+  insumoId          Int
+  cantidadRequerida Decimal @db.Decimal(10, 3)
+  
+  plato             Plato   @relation(fields: [platoId], references: [id])
+  insumo            Insumo  @relation(fields: [insumoId], references: [id])
+
+  @@map("recetas_detalle")
+}
+
+// inventario
+model Insumo {
+  id            Int      @id @default(autoincrement())
+  nombre        String
+  unidadMedida  Unidad
+  stockActual   Decimal  @db.Decimal(10, 3) @default(0)
+  stockMinimo   Decimal  @db.Decimal(10, 3)
+  costoPromedio Decimal  @db.Decimal(10, 2) @default(0)
+  
+  recetas       RecetaDetalle[]
+  lotes         LoteInsumo[]
+  movimientos   KardexMovimiento[]
+  detallesOrden OrdenCompraDetalle[]
+
+  @@map("insumos")
+}
+
+enum Unidad {
+  KG
+  LITRO
+  UNIDAD
+}
+
+// lotes para caducidad
+model LoteInsumo {
+  id                 Int      @id @default(autoincrement())
+  insumoId           Int
+  codigoLote         String
+  fechaCaducidad     DateTime
+  cantidadIngresada  Decimal  @db.Decimal(10, 3)
+  cantidadDisponible Decimal  @db.Decimal(10, 3)
+  estado             EstadoLote @default(ACTIVO)
+  
+  insumo             Insumo   @relation(fields: [insumoId], references: [id])
+
+  @@map("lotes_insumo")
+}
+
+enum EstadoLote {
+  ACTIVO
+  VENCIDO
+  AGOTADO
+}
+
+// kardex contable
+model KardexMovimiento {
+  id               Int      @id @default(autoincrement())
+  insumoId         Int
+  usuarioId        Int
+  tipoMovimiento   TipoMovimiento
+  cantidad         Decimal  @db.Decimal(10, 3)
+  stockAnterior    Decimal  @db.Decimal(10, 3)
+  stockResultante  Decimal  @db.Decimal(10, 3)
+  motivo           String
+  fechaRegistro    DateTime @default(now())
+  
+  insumo           Insumo   @relation(fields: [insumoId], references: [id])
+  usuario          Usuario  @relation(fields: [usuarioId], references: [id])
+
+  @@map("kardex_movimientos")
+}
+
+enum TipoMovimiento {
+  ENTRADA_COMPRA
+  SALIDA_VENTA
+  MERMA
+  AJUSTE_FISICO
+}
+
+// cabecera de pedido
+model Pedido {
+  id            Int      @id @default(autoincrement())
+  mesaId        Int
+  usuarioId     Int
+  estado        EstadoPedido @default(PENDIENTE)
+  total         Decimal  @db.Decimal(10, 2) @default(0)
+  fechaCreacion DateTime @default(now())
+  
+  mesa          Mesa     @relation(fields: [mesaId], references: [id])
+  usuario       Usuario  @relation(fields: [usuarioId], references: [id])
+  detalles      PedidoDetalle[]
+
+  @@map("pedidos")
+}
+
+enum EstadoPedido {
+  PENDIENTE
+  EN_PREPARACION
+  LISTO
+  ENTREGADO
+  CANCELADO
+}
+
+// detalle de pedido
+model PedidoDetalle {
+  id                 Int      @id @default(autoincrement())
+  pedidoId           Int
+  platoId            Int
+  cantidad           Int
+  precioUnitario     Decimal  @db.Decimal(10, 2)
+  notasPersonalizadas String?
+  
+  pedido             Pedido   @relation(fields: [pedidoId], references: [id])
+  plato              Plato    @relation(fields: [platoId], references: [id])
+
+  @@map("pedidos_detalle")
+}
+
+// proveedores
+model Proveedor {
+  id          Int      @id @default(autoincrement())
+  razonSocial String
+  ruc         String   @unique
+  telefono    String?
+  correo      String?
+  
+  ordenes     OrdenCompra[]
+
+  @@map("proveedores")
+}
+
+// cabecera orden compra
+model OrdenCompra {
+  id            Int      @id @default(autoincrement())
+  proveedorId   Int
+  usuarioId     Int
+  estado        EstadoOrden @default(PENDIENTE)
+  fechaEmision  DateTime @default(now())
+  totalEstimado Decimal  @db.Decimal(10, 2) @default(0)
+  
+  proveedor     Proveedor @relation(fields: [proveedorId], references: [id])
+  usuario       Usuario   @relation(fields: [usuarioId], references: [id])
+  detalles      OrdenCompraDetalle[]
+
+  @@map("ordenes_compra")
+}
+
+enum EstadoOrden {
+  PENDIENTE
+  ENVIADA
+  RECEPCIONADA
+  CANCELADA
+}
+
+// detalle orden compra
+model OrdenCompraDetalle {
+  id                 Int      @id @default(autoincrement())
+  ordenId            Int
+  insumoId           Int
+  cantidadSolicitada Decimal  @db.Decimal(10, 3)
+  precioUnitario     Decimal  @db.Decimal(10, 2)
+  
+  orden              OrdenCompra @relation(fields: [ordenId], references: [id])
+  insumo             Insumo      @relation(fields: [insumoId], references: [id])
+
+  @@map("ordenes_compra_detalle")
+}
