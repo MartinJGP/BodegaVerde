@@ -57,6 +57,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   const [metodoPago, setMetodoPago] = useState<MetodoPago>('EFECTIVO');
   const [montoRecibido, setMontoRecibido] = useState<string>('');
   const [referenciaPago, setReferenciaPago] = useState('');
+  const [mostrarCamposCliente, setMostrarCamposCliente] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Modal de Visualización de Ticket
@@ -134,6 +135,26 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     return Number((recibido - total).toFixed(2));
   }, [metodoPago, montoRecibido, pedidoActivoMesa]);
 
+  // Opciones de efectivo rápido (Square POS Quick Tender)
+  const quickCashOptions = useMemo(() => {
+    if (!pedidoActivoMesa) return [];
+    const total = Number(pedidoActivoMesa.total);
+    const list: number[] = [total];
+
+    const roundTen = Math.ceil(total / 10) * 10;
+    if (roundTen > total && !list.includes(roundTen)) {
+      list.push(roundTen);
+    }
+
+    [50, 100, 200].forEach((bill) => {
+      if (bill > total && !list.includes(bill)) {
+        list.push(bill);
+      }
+    });
+
+    return list.slice(0, 4);
+  }, [pedidoActivoMesa]);
+
   // Abrir modal de cobro
   const handleIniciarCobro = (mesa: Mesa) => {
     setSelectedMesa(mesa);
@@ -150,6 +171,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     setMetodoPago('EFECTIVO');
     setMontoRecibido(String(Number(ped.total).toFixed(2)));
     setReferenciaPago('');
+    setMostrarCamposCliente(false);
     setShowCobroModal(true);
   };
 
@@ -694,203 +716,272 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
       )}
 
       {/* ============================================================ */}
-      {/* MODAL DE LIQUIDACIÓN Y COBRO (RF-11, RF-12)                  */}
+      {/* MODAL DE LIQUIDACIÓN Y COBRO REDISEÑADO (MINIMALISTA POS)    */}
       {/* ============================================================ */}
       {showCobroModal && selectedMesa && pedidoActivoMesa && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-charcoal-900/40 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl border border-sand-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-sand-200 pb-3">
-              <div>
-                <h3 className="text-base font-semibold text-charcoal-900">
-                  Cobrar Cuenta - Mesa #{selectedMesa.numero}
-                </h3>
-                <p className="text-xs text-charcoal-700/70">
-                  Comanda #{pedidoActivoMesa.id} • Total: S/ {Number(pedidoActivoMesa.total).toFixed(2)}
-                </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-charcoal-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-sand-200/60 animate-in zoom-in-95 duration-150">
+            {/* Header Muted */}
+            <div className="flex items-center justify-between pb-1">
+              <div className="flex items-center space-x-2 text-xs font-medium text-charcoal-700/70">
+                <span className="font-semibold text-charcoal-900">Mesa #{selectedMesa.numero}</span>
+                <span>·</span>
+                <span>Comanda #{pedidoActivoMesa.id}</span>
+                <span>·</span>
+                <span>{pedidoActivoMesa.detalles?.length || 0} ítems</span>
               </div>
               <button
+                type="button"
                 onClick={() => setShowCobroModal(false)}
-                className="rounded-lg p-1 text-charcoal-500 hover:bg-sand-100"
+                className="rounded-lg p-1 text-charcoal-500 hover:text-charcoal-800 hover:bg-sand-100 transition-colors"
+                title="Cerrar (Esc)"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <form onSubmit={handleConfirmarCobro} className="mt-4 space-y-4">
-              {/* Selector de Tipo de Comprobante */}
-              <div>
-                <label className="block text-xs font-medium text-charcoal-700 mb-1">
-                  Tipo de Comprobante Fiscal
-                </label>
-                <div className="grid grid-cols-2 gap-2">
+            {/* Hero Amount Display */}
+            <div className="text-center py-4">
+              <span className="text-[10px] font-semibold text-charcoal-700/50 uppercase tracking-wider">
+                Monto Total a Cobrar
+              </span>
+              <div className="mt-0.5 text-4xl sm:text-5xl font-semibold tracking-tight text-charcoal-900">
+                <span className="text-2xl font-normal text-charcoal-700/40 mr-1">S/</span>
+                {Number(pedidoActivoMesa.total).toFixed(2)}
+              </div>
+              <div className="mt-1 text-[11px] text-charcoal-700/60 font-medium">
+                Base S/ {calculosPrecuenta.subtotal.toFixed(2)} · IGV (18%) S/ {calculosPrecuenta.igv.toFixed(2)}
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmarCobro} className="space-y-4">
+              {/* Segmented Control: Tipo de Comprobante (Linear Style) */}
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 p-1 rounded-xl bg-sand-100 text-xs font-medium">
                   <button
                     type="button"
-                    onClick={() => setTipoComprobante('BOLETA')}
-                    className={`flex items-center justify-center space-x-2 rounded-lg border p-2.5 text-xs font-semibold ${
+                    onClick={() => {
+                      setTipoComprobante('BOLETA');
+                      setMostrarCamposCliente(false);
+                    }}
+                    className={`py-1.5 rounded-lg text-center transition-all ${
                       tipoComprobante === 'BOLETA'
-                        ? 'border-sage-500 bg-sage-50 text-sage-800 ring-1 ring-sage-500'
-                        : 'border-sand-200 bg-white text-charcoal-700 hover:bg-sand-50'
+                        ? 'bg-white text-charcoal-900 font-semibold shadow-xs'
+                        : 'text-charcoal-700/70 hover:text-charcoal-900'
                     }`}
                   >
-                    <FileText className="h-4 w-4" />
-                    <span>Boleta de Venta (B001)</span>
+                    Boleta de Venta
                   </button>
-
                   <button
                     type="button"
-                    onClick={() => setTipoComprobante('FACTURA')}
-                    className={`flex items-center justify-center space-x-2 rounded-lg border p-2.5 text-xs font-semibold ${
+                    onClick={() => {
+                      setTipoComprobante('FACTURA');
+                      setMostrarCamposCliente(true);
+                    }}
+                    className={`py-1.5 rounded-lg text-center transition-all ${
                       tipoComprobante === 'FACTURA'
-                        ? 'border-sage-500 bg-sage-50 text-sage-800 ring-1 ring-sage-500'
-                        : 'border-sand-200 bg-white text-charcoal-700 hover:bg-sand-50'
+                        ? 'bg-white text-charcoal-900 font-semibold shadow-xs'
+                        : 'text-charcoal-700/70 hover:text-charcoal-900'
                     }`}
                   >
-                    <Building2 className="h-4 w-4" />
-                    <span>Factura Electrónica (F001)</span>
+                    Factura Electrónica
                   </button>
                 </div>
+
+                {/* Divulgación Progresiva: Datos de Cliente */}
+                {tipoComprobante === 'FACTURA' ? (
+                  <div className="space-y-2 pt-1 animate-in fade-in duration-150">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-medium text-charcoal-700 mb-1">
+                          RUC (11 dígitos) *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={11}
+                          value={clienteDocumento}
+                          onChange={(e) => setClienteDocumento(e.target.value)}
+                          placeholder="20601234567"
+                          className="w-full rounded-lg border border-sand-300 px-3 py-1.5 text-xs text-charcoal-900 focus:border-sage-600 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-charcoal-700 mb-1">
+                          Razón Social *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={clienteNombre}
+                          onChange={(e) => setClienteNombre(e.target.value)}
+                          placeholder="Empresa SAC"
+                          className="w-full rounded-lg border border-sand-300 px-3 py-1.5 text-xs text-charcoal-900 focus:border-sage-600 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {!mostrarCamposCliente ? (
+                      <button
+                        type="button"
+                        onClick={() => setMostrarCamposCliente(true)}
+                        className="text-[11px] text-sage-700 hover:text-sage-800 font-medium transition-colors"
+                      >
+                        + Agregar DNI o Nombre (opcional)
+                      </button>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2 pt-1 animate-in fade-in duration-150">
+                        <div>
+                          <label className="block text-[10px] font-medium text-charcoal-700/70 mb-0.5">
+                            DNI Cliente
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={8}
+                            value={clienteDocumento}
+                            onChange={(e) => setClienteDocumento(e.target.value)}
+                            placeholder="72819201"
+                            className="w-full rounded-lg border border-sand-300 px-3 py-1 text-xs text-charcoal-900 focus:border-sage-600 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-medium text-charcoal-700/70 mb-0.5">
+                            Nombre
+                          </label>
+                          <input
+                            type="text"
+                            value={clienteNombre}
+                            onChange={(e) => setClienteNombre(e.target.value)}
+                            placeholder="Clientes Varios"
+                            className="w-full rounded-lg border border-sand-300 px-3 py-1 text-xs text-charcoal-900 focus:border-sage-600 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Datos del Cliente */}
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <div>
-                  <label className="block text-[11px] font-medium text-charcoal-700">
-                    {tipoComprobante === 'FACTURA' ? 'RUC de la Empresa *' : 'DNI del Cliente (Opcional)'}
-                  </label>
-                  <input
-                    type="text"
-                    value={clienteDocumento}
-                    onChange={(e) => setClienteDocumento(e.target.value)}
-                    placeholder={tipoComprobante === 'FACTURA' ? '20601234567' : '72123456'}
-                    maxLength={tipoComprobante === 'FACTURA' ? 11 : 8}
-                    required={tipoComprobante === 'FACTURA'}
-                    className="mt-1 w-full rounded-lg border border-sand-300 px-3 py-1.5 text-xs focus:border-sage-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-medium text-charcoal-700">
-                    {tipoComprobante === 'FACTURA' ? 'Razón Social *' : 'Nombre del Cliente'}
-                  </label>
-                  <input
-                    type="text"
-                    value={clienteNombre}
-                    onChange={(e) => setClienteNombre(e.target.value)}
-                    placeholder={tipoComprobante === 'FACTURA' ? 'Empresa SAC' : 'Clientes Varios'}
-                    required={tipoComprobante === 'FACTURA'}
-                    className="mt-1 w-full rounded-lg border border-sand-300 px-3 py-1.5 text-xs focus:border-sage-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Método de Pago */}
-              <div>
-                <label className="block text-xs font-medium text-charcoal-700 mb-1">
-                  Método de Pago
-                </label>
-                <div className="grid grid-cols-4 gap-2">
+              {/* Segmented Control: Método de Pago */}
+              <div className="space-y-2">
+                <div className="grid grid-cols-4 p-1 rounded-xl bg-sand-100 text-xs font-medium">
                   {(['EFECTIVO', 'TARJETA', 'YAPE', 'PLIN'] as MetodoPago[]).map((metodo) => (
                     <button
                       key={metodo}
                       type="button"
                       onClick={() => setMetodoPago(metodo)}
-                      className={`flex flex-col items-center justify-center rounded-lg border p-2 text-xs font-semibold ${
+                      className={`py-1.5 flex items-center justify-center space-x-1 rounded-lg transition-all ${
                         metodoPago === metodo
-                          ? 'border-sage-500 bg-sage-50 text-sage-800 ring-1 ring-sage-500'
-                          : 'border-sand-200 bg-white text-charcoal-700 hover:bg-sand-50'
+                          ? 'bg-white text-charcoal-900 font-semibold shadow-xs'
+                          : 'text-charcoal-700/70 hover:text-charcoal-900'
                       }`}
                     >
-                      {metodo === 'EFECTIVO' && <Banknote className="h-4 w-4 mb-1" />}
-                      {metodo === 'TARJETA' && <CreditCard className="h-4 w-4 mb-1" />}
-                      {metodo === 'YAPE' && <QrCode className="h-4 w-4 mb-1" />}
-                      {metodo === 'PLIN' && <QrCode className="h-4 w-4 mb-1" />}
-                      <span className="text-[10px]">{metodo}</span>
+                      {metodo === 'EFECTIVO' && <Banknote className="h-3.5 w-3.5" />}
+                      {metodo === 'TARJETA' && <CreditCard className="h-3.5 w-3.5" />}
+                      {(metodo === 'YAPE' || metodo === 'PLIN') && <QrCode className="h-3.5 w-3.5" />}
+                      <span>{metodo === 'TARJETA' ? 'POS' : metodo}</span>
                     </button>
                   ))}
                 </div>
-              </div>
 
-              {/* Campos dinámicos según el método */}
-              {metodoPago === 'EFECTIVO' ? (
-                <div className="rounded-lg bg-sand-50 p-3 border border-sand-200 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-charcoal-700">Monto total a cobrar:</span>
-                    <span className="font-bold text-charcoal-900">
-                      S/ {Number(pedidoActivoMesa.total).toFixed(2)}
-                    </span>
+                {/* Dinámica de Efectivo con Chips Rápidos (Square POS) */}
+                {metodoPago === 'EFECTIVO' ? (
+                  <div className="space-y-3 pt-1">
+                    {/* Chips de Efectivo Rápido */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] text-charcoal-700/60 font-medium mr-1">Rápido:</span>
+                      {quickCashOptions.map((opt, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setMontoRecibido(String(opt.toFixed(2)))}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                            parseFloat(montoRecibido) === opt
+                              ? 'border-sage-600 bg-sage-50 text-sage-800 font-semibold ring-1 ring-sage-600'
+                              : 'border-sand-200 bg-white text-charcoal-800 hover:bg-sand-50'
+                          }`}
+                        >
+                          {opt === Number(pedidoActivoMesa.total) ? `Exacto S/ ${opt.toFixed(2)}` : `S/ ${opt.toFixed(2)}`}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Input Monto Recibido y Vuelto */}
+                    <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-sand-50 border border-sand-200/80">
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-semibold text-charcoal-700/70 uppercase">
+                          Dinero Recibido
+                        </label>
+                        <div className="relative mt-0.5 flex items-center">
+                          <span className="absolute left-2.5 text-xs text-charcoal-700/50 font-bold">S/</span>
+                          <input
+                            type="number"
+                            step="0.10"
+                            value={montoRecibido}
+                            onChange={(e) => setMontoRecibido(e.target.value)}
+                            placeholder="0.00"
+                            required
+                            className="w-full rounded-lg border border-sand-300 bg-white pl-7 pr-3 py-1.5 text-sm font-semibold text-charcoal-900 focus:border-sage-600 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="block text-[10px] font-semibold text-charcoal-700/70 uppercase">
+                          Vuelto
+                        </span>
+                        <div
+                          className={`mt-1 text-lg font-bold tracking-tight ${
+                            vueltoCalculado > 0 ? 'text-sage-700' : 'text-charcoal-700/60'
+                          }`}
+                        >
+                          S/ {vueltoCalculado.toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-medium text-charcoal-700">
-                      Monto Recibido del Cliente (S/)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.10"
-                      value={montoRecibido}
-                      onChange={(e) => setMontoRecibido(e.target.value)}
-                      placeholder="0.00"
-                      required
-                      className="mt-1 w-full rounded-lg border border-sand-300 bg-white px-3 py-1.5 text-xs font-semibold text-charcoal-900 focus:border-sage-500 focus:outline-none"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-xs border-t border-sand-200 pt-2">
-                    <span className="font-medium text-charcoal-800">Vuelto a entregar:</span>
-                    <span
-                      className={`font-extrabold ${
-                        vueltoCalculado > 0 ? 'text-sage-700' : 'text-charcoal-700'
-                      }`}
-                    >
-                      S/ {vueltoCalculado.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-lg bg-sand-50 p-3 border border-sand-200 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-charcoal-700">Monto a liquidar:</span>
-                    <span className="font-bold text-charcoal-900">
-                      S/ {Number(pedidoActivoMesa.total).toFixed(2)}
-                    </span>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-medium text-charcoal-700">
+                ) : (
+                  <div className="pt-1">
+                    <label className="block text-[11px] font-medium text-charcoal-700 mb-1">
                       {metodoPago === 'TARJETA'
-                        ? 'Nº de Operación / Voucher POS'
-                        : 'Código de Operación o Aprobación Móvil'}
+                        ? 'Nº de Operación / Voucher POS (Opcional)'
+                        : 'Código de Operación Yape / Plin (Opcional)'}
                     </label>
                     <input
                       type="text"
                       value={referenciaPago}
                       onChange={(e) => setReferenciaPago(e.target.value)}
-                      placeholder="Ej. OP-49201"
-                      className="mt-1 w-full rounded-lg border border-sand-300 bg-white px-3 py-1.5 text-xs focus:border-sage-500 focus:outline-none"
+                      placeholder={metodoPago === 'TARJETA' ? 'Ej. OP-48192' : 'Ej. 091823'}
+                      className="w-full rounded-lg border border-sand-300 px-3 py-1.5 text-xs text-charcoal-900 focus:border-sage-600 focus:outline-none"
                     />
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              {/* Botón de Emisión */}
-              <div className="flex items-center justify-end space-x-2 border-t border-sand-200 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowCobroModal(false)}
-                  className="rounded-lg border border-sand-300 px-3 py-1.5 text-xs font-medium text-charcoal-700 hover:bg-sand-100"
-                >
-                  Cancelar
-                </button>
+              {/* Botón de Acción Principal (Hero CTA) */}
+              <div className="pt-2 space-y-1.5">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex items-center space-x-1.5 rounded-lg bg-sage-600 px-4 py-2 text-xs font-semibold text-white hover:bg-sage-700 disabled:opacity-50 shadow-sm"
+                  className="w-full h-11 flex items-center justify-center space-x-2 rounded-xl bg-sage-700 hover:bg-sage-800 text-white font-semibold text-xs shadow-sm transition-all disabled:opacity-50"
                 >
                   {isSubmitting ? (
-                    <span>Emitiendo comprobante...</span>
+                    <span>Procesando cobro...</span>
                   ) : (
                     <>
                       <CheckCircle2 className="h-4 w-4" />
-                      <span>Confirmar Pago y Liberar Mesa</span>
+                      <span>Cobrar S/ {Number(pedidoActivoMesa.total).toFixed(2)} y Liberar Mesa</span>
                     </>
                   )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCobroModal(false)}
+                  className="w-full py-1 text-center text-xs font-medium text-charcoal-700/60 hover:text-charcoal-900 transition-colors"
+                >
+                  Cancelar
                 </button>
               </div>
             </form>
