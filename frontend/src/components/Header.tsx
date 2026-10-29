@@ -79,7 +79,7 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <Receipt className="h-3.5 w-3.5" />
-            <span>Caja / Checkout</span>
+            <span>Caja</span>
             {cuentasPendientesCount > 0 && (
               <span className="ml-1 inline-flex items-center justify-center rounded-full bg-sage-200 px-1.5 py-0.5 text-[10px] font-bold text-sage-800">
                 {cuentasPendientesCount}
