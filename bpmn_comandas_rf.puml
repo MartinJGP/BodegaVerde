@@ -1,0 +1,75 @@
+@startuml
+skinparam DefaultFontName Arial
+skinparam ActivityFontSize 12
+skinparam ActivityBackgroundColor #FBFDFB
+skinparam ActivityBorderColor #2D5A27
+skinparam ActivityBorderThickness 1.5
+skinparam ArrowColor #2D5A27
+skinparam ArrowThickness 1.2
+skinparam SwimlaneTitleFontSize 14
+skinparam SwimlaneTitleFontStyle bold
+skinparam SwimlaneBorderColor #A3B899
+skinparam SwimlaneBorderThickness 1.5
+
+title Proceso de Toma y Gestión de Comandas (La Bodega Verde)
+
+|#F7FAF7|Cliente|
+|#F0F5F0|Mesero|
+|#E8F0E8|Cocina|
+
+|Cliente|
+start
+repeat
+  :Revisar la carta y
+  decidir pedido;
+  
+  |Mesero|
+  :Tomar la orden
+  de forma verbal;
+  :Consultar disponibilidad
+  de platos e insumos
+  <color:#1B4D1B><b>[RF-02] [RF-03]</b></color>;
+backward:Informar falta de insumos
+y sugerir alternativa;
+repeat while (¿Hay disponibilidad
+del plato?) is (no) not (sí)
+
+:Registrar orden
+en comanda
+<color:#1B4D1B><b>[RF-01]</b></color>;
+
+:Transmitir comanda digital
+al área de cocina (KDS)
+<color:#1B4D1B><b>[RF-04]</b></color>;
+
+|Cocina|
+:Recibir y priorizar
+comanda en pantalla KDS
+<color:#1B4D1B><b>[RF-05]</b></color>;
+
+:Preparar alimentos y bebidas
+(Estado: En preparación)
+<color:#1B4D1B><b>[RF-06]</b></color>;
+
+:Colocar pedido listo
+en barra de despacho
+(Estado: Listo)
+<color:#1B4D1B><b>[RF-06]</b></color>;
+
+:Avisar al mesero que
+la orden está terminada
+<color:#1B4D1B><b>[RF-07]</b></color>;
+
+|Mesero|
+:Recoger platos y
+bebidas de la barra;
+
+:Llevar y servir el pedido
+en la mesa del cliente
+<color:#1B4D1B><b>[RF-08]</b></color>;
+
+|Cliente|
+:Recibir y degustar
+el pedido;
+stop
+@enduml

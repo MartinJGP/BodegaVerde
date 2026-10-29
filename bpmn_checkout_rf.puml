@@ -1,0 +1,70 @@
+@startuml
+skinparam DefaultFontName Arial
+skinparam ActivityFontSize 12
+skinparam ActivityBackgroundColor #FBFDFB
+skinparam ActivityBorderColor #2D5A27
+skinparam ActivityBorderThickness 1.5
+skinparam ArrowColor #2D5A27
+skinparam ArrowThickness 1.2
+skinparam SwimlaneTitleFontSize 14
+skinparam SwimlaneTitleFontStyle bold
+skinparam SwimlaneBorderColor #A3B899
+skinparam SwimlaneBorderThickness 1.5
+
+title Proceso de Cierre de Cuenta y Checkout (La Bodega Verde)
+
+|#F7FAF7|Cliente|
+|#F0F5F0|Mesero|
+|#E8F0E8|Cajero|
+
+|Cliente|
+start
+:Solicitar la cuenta
+en la mesa;
+
+|Mesero|
+:Generar pre-cuenta
+de consumo por mesa
+<color:#1B4D1B><b>[RF-09]</b></color>;
+
+:Presentar pre-cuenta
+al cliente en la mesa;
+
+|Cliente|
+:Revisar pre-cuenta y
+elegir método de pago
+(Efectivo, Tarjeta o QR);
+
+:Entregar medio de pago
+o acercarse a caja;
+
+|Cajero|
+:Consultar mesas pendientes
+de cobro en tiempo real
+<color:#1B4D1B><b>[RF-10]</b></color>;
+
+:Registrar el pago de la cuenta
+según el método seleccionado
+<color:#1B4D1B><b>[RF-11]</b></color>;
+
+:Emitir comprobante de pago
+electrónico (Boleta o Factura)
+<color:#1B4D1B><b>[RF-12]</b></color>;
+
+:Registrar transacción y
+consultar historial de ventas
+<color:#1B4D1B><b>[RF-13]</b></color>;
+
+:Actualizar estado de la
+mesa a libre en el sistema
+<color:#1B4D1B><b>[RF-14]</b></color>;
+
+|Mesero|
+:Entregar comprobante y
+agradecer la visita;
+
+|Cliente|
+:Recibir comprobante
+y retirarse del local;
+stop
+@enduml

@@ -11,14 +11,15 @@ datasource db {
 
 // usuarios del sistema
 model Usuario {
-  id           Int      @id @default(autoincrement())
+  id           Int     @id @default(autoincrement())
   nombre       String
-  email        String   @unique
+  email        String  @unique
   passwordHash String
   rol          Rol
-  activo       Boolean  @default(true)
-  
+  activo       Boolean @default(true)
+
   pedidos      Pedido[]
+  comprobantes Comprobante[]      @relation("ComprobantesEmitidos")
   movimientos  KardexMovimiento[]
   compras      OrdenCompra[]
 
@@ -29,16 +30,17 @@ enum Rol {
   ADMIN
   MESERO
   COCINERO
+  CAJERO
 }
 
 // mesas del local
 model Mesa {
-  id        Int      @id @default(autoincrement())
-  numero    Int      @unique
+  id        Int        @id @default(autoincrement())
+  numero    Int        @unique
   capacidad Int
   estado    EstadoMesa @default(DISPONIBLE)
-  
-  pedidos   Pedido[]
+
+  pedidos Pedido[]
 
   @@map("mesas")
 }
@@ -54,24 +56,24 @@ model Categoria {
   id          Int     @id @default(autoincrement())
   nombre      String
   descripcion String?
-  
-  platos      Plato[]
+
+  platos Plato[]
 
   @@map("categorias")
 }
 
 // platos de la carta
 model Plato {
-  id          Int      @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   categoriaId Int
   nombre      String
-  precio      Decimal  @db.Decimal(10, 2)
+  precio      Decimal @db.Decimal(10, 2)
   descripcion String?
-  activo      Boolean  @default(true)
-  
-  categoria   Categoria @relation(fields: [categoriaId], references: [id])
-  receta      RecetaDetalle[]
-  pedidos     PedidoDetalle[]
+  activo      Boolean @default(true)
+
+  categoria Categoria       @relation(fields: [categoriaId], references: [id])
+  receta    RecetaDetalle[]
+  pedidos   PedidoDetalle[]
 
   @@map("platos")
 }
@@ -82,22 +84,22 @@ model RecetaDetalle {
   platoId           Int
   insumoId          Int
   cantidadRequerida Decimal @db.Decimal(10, 3)
-  
-  plato             Plato   @relation(fields: [platoId], references: [id])
-  insumo            Insumo  @relation(fields: [insumoId], references: [id])
+
+  plato  Plato  @relation(fields: [platoId], references: [id])
+  insumo Insumo @relation(fields: [insumoId], references: [id])
 
   @@map("recetas_detalle")
 }
 
 // inventario
 model Insumo {
-  id            Int      @id @default(autoincrement())
+  id            Int     @id @default(autoincrement())
   nombre        String
   unidadMedida  Unidad
-  stockActual   Decimal  @db.Decimal(10, 3) @default(0)
-  stockMinimo   Decimal  @db.Decimal(10, 3)
-  costoPromedio Decimal  @db.Decimal(10, 2) @default(0)
-  
+  stockActual   Decimal @default(0) @db.Decimal(10, 3)
+  stockMinimo   Decimal @db.Decimal(10, 3)
+  costoPromedio Decimal @default(0) @db.Decimal(10, 2)
+
   recetas       RecetaDetalle[]
   lotes         LoteInsumo[]
   movimientos   KardexMovimiento[]
@@ -114,15 +116,15 @@ enum Unidad {
 
 // lotes para caducidad
 model LoteInsumo {
-  id                 Int      @id @default(autoincrement())
+  id                 Int        @id @default(autoincrement())
   insumoId           Int
   codigoLote         String
   fechaCaducidad     DateTime
-  cantidadIngresada  Decimal  @db.Decimal(10, 3)
-  cantidadDisponible Decimal  @db.Decimal(10, 3)
+  cantidadIngresada  Decimal    @db.Decimal(10, 3)
+  cantidadDisponible Decimal    @db.Decimal(10, 3)
   estado             EstadoLote @default(ACTIVO)
-  
-  insumo             Insumo   @relation(fields: [insumoId], references: [id])
+
+  insumo Insumo @relation(fields: [insumoId], references: [id])
 
   @@map("lotes_insumo")
 }
@@ -135,18 +137,18 @@ enum EstadoLote {
 
 // kardex contable
 model KardexMovimiento {
-  id               Int      @id @default(autoincrement())
-  insumoId         Int
-  usuarioId        Int
-  tipoMovimiento   TipoMovimiento
-  cantidad         Decimal  @db.Decimal(10, 3)
-  stockAnterior    Decimal  @db.Decimal(10, 3)
-  stockResultante  Decimal  @db.Decimal(10, 3)
-  motivo           String
-  fechaRegistro    DateTime @default(now())
-  
-  insumo           Insumo   @relation(fields: [insumoId], references: [id])
-  usuario          Usuario  @relation(fields: [usuarioId], references: [id])
+  id              Int            @id @default(autoincrement())
+  insumoId        Int
+  usuarioId       Int
+  tipoMovimiento  TipoMovimiento
+  cantidad        Decimal        @db.Decimal(10, 3)
+  stockAnterior   Decimal        @db.Decimal(10, 3)
+  stockResultante Decimal        @db.Decimal(10, 3)
+  motivo          String
+  fechaRegistro   DateTime       @default(now())
+
+  insumo  Insumo  @relation(fields: [insumoId], references: [id])
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
 
   @@map("kardex_movimientos")
 }
@@ -160,16 +162,18 @@ enum TipoMovimiento {
 
 // cabecera de pedido
 model Pedido {
-  id            Int      @id @default(autoincrement())
+  id            Int          @id @default(autoincrement())
   mesaId        Int
   usuarioId     Int
   estado        EstadoPedido @default(PENDIENTE)
-  total         Decimal  @db.Decimal(10, 2) @default(0)
-  fechaCreacion DateTime @default(now())
-  
-  mesa          Mesa     @relation(fields: [mesaId], references: [id])
-  usuario       Usuario  @relation(fields: [usuarioId], references: [id])
-  detalles      PedidoDetalle[]
+  total         Decimal      @default(0) @db.Decimal(10, 2)
+  fechaCreacion DateTime     @default(now())
+  fechaCierre   DateTime?
+
+  mesa        Mesa            @relation(fields: [mesaId], references: [id])
+  usuario     Usuario         @relation(fields: [usuarioId], references: [id])
+  detalles    PedidoDetalle[]
+  comprobante Comprobante?
 
   @@map("pedidos")
 }
@@ -179,49 +183,50 @@ enum EstadoPedido {
   EN_PREPARACION
   LISTO
   ENTREGADO
+  PAGADO
   CANCELADO
 }
 
 // detalle de pedido
 model PedidoDetalle {
-  id                 Int      @id @default(autoincrement())
-  pedidoId           Int
-  platoId            Int
-  cantidad           Int
-  precioUnitario     Decimal  @db.Decimal(10, 2)
+  id                  Int     @id @default(autoincrement())
+  pedidoId            Int
+  platoId             Int
+  cantidad            Int
+  precioUnitario      Decimal @db.Decimal(10, 2)
   notasPersonalizadas String?
-  
-  pedido             Pedido   @relation(fields: [pedidoId], references: [id])
-  plato              Plato    @relation(fields: [platoId], references: [id])
+
+  pedido Pedido @relation(fields: [pedidoId], references: [id])
+  plato  Plato  @relation(fields: [platoId], references: [id])
 
   @@map("pedidos_detalle")
 }
 
 // proveedores
 model Proveedor {
-  id          Int      @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   razonSocial String
-  ruc         String   @unique
+  ruc         String  @unique
   telefono    String?
   correo      String?
-  
-  ordenes     OrdenCompra[]
+
+  ordenes OrdenCompra[]
 
   @@map("proveedores")
 }
 
 // cabecera orden compra
 model OrdenCompra {
-  id            Int      @id @default(autoincrement())
+  id            Int         @id @default(autoincrement())
   proveedorId   Int
   usuarioId     Int
   estado        EstadoOrden @default(PENDIENTE)
-  fechaEmision  DateTime @default(now())
-  totalEstimado Decimal  @db.Decimal(10, 2) @default(0)
-  
-  proveedor     Proveedor @relation(fields: [proveedorId], references: [id])
-  usuario       Usuario   @relation(fields: [usuarioId], references: [id])
-  detalles      OrdenCompraDetalle[]
+  fechaEmision  DateTime    @default(now())
+  totalEstimado Decimal     @default(0) @db.Decimal(10, 2)
+
+  proveedor Proveedor            @relation(fields: [proveedorId], references: [id])
+  usuario   Usuario              @relation(fields: [usuarioId], references: [id])
+  detalles  OrdenCompraDetalle[]
 
   @@map("ordenes_compra")
 }
@@ -235,14 +240,74 @@ enum EstadoOrden {
 
 // detalle orden compra
 model OrdenCompraDetalle {
-  id                 Int      @id @default(autoincrement())
+  id                 Int     @id @default(autoincrement())
   ordenId            Int
   insumoId           Int
-  cantidadSolicitada Decimal  @db.Decimal(10, 3)
-  precioUnitario     Decimal  @db.Decimal(10, 2)
-  
-  orden              OrdenCompra @relation(fields: [ordenId], references: [id])
-  insumo             Insumo      @relation(fields: [insumoId], references: [id])
+  cantidadSolicitada Decimal @db.Decimal(10, 3)
+  precioUnitario     Decimal @db.Decimal(10, 2)
+
+  orden  OrdenCompra @relation(fields: [ordenId], references: [id])
+  insumo Insumo      @relation(fields: [insumoId], references: [id])
 
   @@map("ordenes_compra_detalle")
+}
+
+// ==========================================
+// MÓDULO DE FACTURACIÓN Y CHECKOUT
+// ==========================================
+
+// comprobante fiscal de pago (boleta o factura)
+model Comprobante {
+  id                Int               @id @default(autoincrement())
+  pedidoId          Int               @unique
+  cajeroId          Int?
+  tipo              TipoComprobante   @default(BOLETA)
+  serie             String            @default("B001")
+  numeroCorrelativo Int
+  clienteNombre     String?
+  clienteDocumento  String?
+  subtotal          Decimal           @db.Decimal(10, 2)
+  igv               Decimal           @db.Decimal(10, 2)
+  total             Decimal           @db.Decimal(10, 2)
+  fechaEmision      DateTime          @default(now())
+  estado            EstadoComprobante @default(EMITIDO)
+
+  pedido Pedido   @relation(fields: [pedidoId], references: [id])
+  cajero Usuario? @relation("ComprobantesEmitidos", fields: [cajeroId], references: [id])
+  pagos  Pago[]
+
+  @@map("comprobantes")
+}
+
+enum TipoComprobante {
+  BOLETA
+  FACTURA
+}
+
+enum EstadoComprobante {
+  EMITIDO
+  ANULADO
+}
+
+// transaccion de cobro y metodos de pago
+model Pago {
+  id            Int        @id @default(autoincrement())
+  comprobanteId Int
+  metodoPago    MetodoPago
+  monto         Decimal    @db.Decimal(10, 2)
+  montoRecibido Decimal?   @db.Decimal(10, 2)
+  vuelto        Decimal?   @db.Decimal(10, 2)
+  referencia    String?
+  fechaPago     DateTime   @default(now())
+
+  comprobante Comprobante @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
+
+  @@map("pagos")
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TARJETA
+  YAPE
+  PLIN
 }

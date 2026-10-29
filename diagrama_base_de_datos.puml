@@ -1,0 +1,144 @@
+@startuml
+skinparam DefaultFontName Arial
+skinparam roundcorner 5
+skinparam linetype ortho
+skinparam shadowing false
+skinparam packageBackgroundColor #FAFCFA
+skinparam packageBorderColor #2D5A27
+skinparam packageFontStyle bold
+
+' Paleta de colores Bodega Verde
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D5A27
+    HeaderBackgroundColor #E8F0E6
+    FontSize 11
+    AttributeFontSize 10
+}
+
+title <size:16><b>Diagrama Entidad-Relación (ERD) - Base de Datos PostgreSQL (Supabase)</b></size>\n<size:12>Módulos de Gestión de Comandas y Checkout / Facturación - La Bodega Verde</size>
+
+package "Control de Usuarios y Roles" as PkgUsuarios {
+    entity "usuarios" as Usuario {
+        * id : INT <<PK>> [Auto]
+        --
+        * nombre : VARCHAR(255)
+        * email : VARCHAR(255) <<UNIQUE>>
+        * passwordHash : VARCHAR(255)
+        * rol : ENUM ('ADMIN','MESERO','COCINERO','CAJERO')
+        * activo : BOOLEAN [default: true]
+    }
+}
+
+package "Salón y Mesas" as PkgMesas {
+    entity "mesas" as Mesa {
+        * id : INT <<PK>> [Auto]
+        --
+        * numero : INT <<UNIQUE>>
+        * capacidad : INT
+        * estado : ENUM ('DISPONIBLE','OCUPADA','EN_PAGO')
+    }
+}
+
+package "Catálogo de Menú" as PkgMenu {
+    entity "categorias" as Categoria {
+        * id : INT <<PK>> [Auto]
+        --
+        * nombre : VARCHAR(100)
+        descripcion : TEXT
+    }
+
+    entity "platos" as Plato {
+        * id : INT <<PK>> [Auto]
+        --
+        * categoriaId : INT <<FK>>
+        * nombre : VARCHAR(150)
+        * precio : DECIMAL(10,2)
+        descripcion : TEXT
+        * activo : BOOLEAN [default: true]
+    }
+}
+
+package "Proceso 1: Gestión de Comandas y Pedidos" as PkgComandas {
+    entity "pedidos" as Pedido {
+        * id : INT <<PK>> [Auto]
+        --
+        * mesaId : INT <<FK>>
+        * usuarioId : INT <<FK>> (Mesero)
+        * estado : ENUM ('PENDIENTE','EN_PREPARACION','LISTO','ENTREGADO','PAGADO','CANCELADO')
+        * total : DECIMAL(10,2) [default: 0.00]
+        * fechaCreacion : TIMESTAMP [default: now()]
+        fechaCierre : TIMESTAMP
+    }
+
+    entity "pedidos_detalle" as PedidoDetalle {
+        * id : INT <<PK>> [Auto]
+        --
+        * pedidoId : INT <<FK>>
+        * platoId : INT <<FK>>
+        * cantidad : INT
+        * precioUnitario : DECIMAL(10,2)
+        notasPersonalizadas : VARCHAR(255)
+    }
+}
+
+package "Proceso 2: Cierre de Cuenta y Checkout" as PkgCheckout {
+    entity "comprobantes" as Comprobante {
+        * id : INT <<PK>> [Auto]
+        --
+        * pedidoId : INT <<FK, UNIQUE>>
+        cajeroId : INT <<FK>> (Cajero)
+        * tipo : ENUM ('BOLETA','FACTURA')
+        * serie : VARCHAR(10) [default: 'B001']
+        * numeroCorrelativo : INT
+        clienteNombre : VARCHAR(200)
+        clienteDocumento : VARCHAR(20)
+        * subtotal : DECIMAL(10,2)
+        * igv : DECIMAL(10,2)
+        * total : DECIMAL(10,2)
+        * fechaEmision : TIMESTAMP [default: now()]
+        * estado : ENUM ('EMITIDO','ANULADO')
+    }
+
+    entity "pagos" as Pago {
+        * id : INT <<PK>> [Auto]
+        --
+        * comprobanteId : INT <<FK>>
+        * metodoPago : ENUM ('EFECTIVO','TARJETA','YAPE','PLIN')
+        * monto : DECIMAL(10,2)
+        montoRecibido : DECIMAL(10,2)
+        vuelto : DECIMAL(10,2)
+        referencia : VARCHAR(100)
+        * fechaPago : TIMESTAMP [default: now()]
+    }
+}
+
+' Relaciones con Cardinalidad
+Categoria ||--|{ Plato : "1 categoria tiene N platos"
+
+Mesa ||--o{ Pedido : "1 mesa registra N pedidos"
+Usuario ||--o{ Pedido : "1 mesero registra N pedidos"
+
+Pedido ||--|{ PedidoDetalle : "1 pedido contiene 1..N detalles"
+Plato ||--o{ PedidoDetalle : "1 plato figura en N detalles"
+
+Pedido ||--o| Comprobante : "1 pedido genera 0..1 comprobante"
+Usuario ||--o{ Comprobante : "1 cajero emite N comprobantes"
+
+Comprobante ||--|{ Pago : "1 comprobante tiene 1..N pagos"
+
+note bottom of Comprobante
+  <b>Lógica de Facturación Fiscal:</b>
+  * 1 a 1 con Pedido (garantiza que cada consumo se facture una sola vez)
+  * Cálculo tributario: Total = Subtotal + IGV (18%)
+  * Boleta (DNI opcional) / Factura (RUC obligatorio)
+end note
+
+note bottom of Pago
+  <b>Soporte Multi-Método:</b>
+  * Soporta pago mixto (ej: Efectivo + Yape)
+  * Registra vuelto para pagos en efectivo
+  * Almacena código de voucher o transacción digital
+end note
+
+@enduml

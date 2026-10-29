@@ -1,0 +1,73 @@
+@startuml
+skinparam DefaultFontName Arial
+skinparam ActivityFontSize 12
+skinparam ActivityBackgroundColor #FBFDFB
+skinparam ActivityBorderColor #2D5A27
+skinparam ActivityBorderThickness 1.5
+skinparam ArrowColor #2D5A27
+skinparam ArrowThickness 1.2
+skinparam SwimlaneTitleFontSize 14
+skinparam SwimlaneTitleFontStyle bold
+skinparam SwimlaneBorderColor #A3B899
+skinparam SwimlaneBorderThickness 1.5
+
+title Diagrama de Procesos de Negocio - Proceso de Cierre de Cuenta (Checkout)
+
+|#F7FAF7|Cliente|
+|#F0F5F0|Mesero|
+|#E8F0E8|Cajero|
+
+|Cliente|
+start
+:Solicitar la cuenta
+en la mesa;
+
+|Mesero|
+:Elaborar pre-cuenta
+de consumo de la mesa
+<color:#1B4D1B><b>[RF-09]</b></color>;
+
+:Llevar y presentar
+pre-cuenta al cliente;
+
+|Cliente|
+:Revisar detalle de consumo
+y elegir método de pago;
+
+:Entregar dinero en efectivo
+o tarjeta al mesero;
+
+|Mesero|
+:Trasladar medio de pago
+a la estación de caja;
+
+|Cajero|
+:Verificar consumos y cuentas
+pendientes de cobro
+<color:#1B4D1B><b>[RF-10]</b></color>;
+
+:Cobrar consumo según el
+método de pago recibido
+<color:#1B4D1B><b>[RF-11]</b></color>;
+
+:Emitir boleta o
+factura de venta
+<color:#1B4D1B><b>[RF-12]</b></color>;
+
+:Archivar comprobante y registrar
+en el control de caja del día
+<color:#1B4D1B><b>[RF-13]</b></color>;
+
+:Habilitar y declarar
+la mesa disponible
+<color:#1B4D1B><b>[RF-14]</b></color>;
+
+|Mesero|
+:Llevar comprobante de pago
+y vuelto a la mesa;
+
+|Cliente|
+:Recibir comprobante
+y retirarse del local;
+stop
+@enduml
