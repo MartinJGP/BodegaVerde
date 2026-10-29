@@ -1,8 +1,8 @@
-export type Rol = 'ADMIN' | 'MESERO' | 'COCINERO';
+export type Rol = 'ADMIN' | 'MESERO' | 'COCINERO' | 'CAJERO';
 
 export type EstadoMesa = 'DISPONIBLE' | 'OCUPADA' | 'EN_PAGO';
 
-export type EstadoPedido = 'PENDIENTE' | 'EN_PREPARACION' | 'LISTO' | 'ENTREGADO' | 'CANCELADO';
+export type EstadoPedido = 'PENDIENTE' | 'EN_PREPARACION' | 'LISTO' | 'ENTREGADO' | 'PAGADO' | 'CANCELADO';
 
 export type UnidadMedida = 'KG' | 'LITRO' | 'UNIDAD';
 
@@ -101,3 +101,51 @@ export interface KardexMovimiento {
   insumo?: Insumo;
   usuario?: { id: number; nombre: string; rol: Rol };
 }
+
+// ==========================================
+// MÓDULO DE FACTURACIÓN Y CHECKOUT (RF-09 a RF-14)
+// ==========================================
+
+export type TipoComprobante = 'BOLETA' | 'FACTURA';
+export type EstadoComprobante = 'EMITIDO' | 'ANULADO';
+export type MetodoPago = 'EFECTIVO' | 'TARJETA' | 'YAPE' | 'PLIN';
+
+export interface Pago {
+  id?: number;
+  comprobanteId?: number;
+  metodoPago: MetodoPago;
+  monto: number | string;
+  montoRecibido?: number | string | null;
+  vuelto?: number | string | null;
+  referencia?: string | null;
+  fechaPago?: string;
+}
+
+export interface Comprobante {
+  id: number;
+  pedidoId: number;
+  cajeroId?: number | null;
+  tipo: TipoComprobante;
+  serie: string;
+  numeroCorrelativo: number;
+  clienteNombre?: string | null;
+  clienteDocumento?: string | null;
+  subtotal: number | string;
+  igv: number | string;
+  total: number | string;
+  fechaEmision: string;
+  estado: EstadoComprobante;
+  pedido?: Pedido;
+  cajero?: { id: number; nombre: string; email: string; rol: Rol } | null;
+  pagos: Pago[];
+}
+
+export interface ResumenCajaDiario {
+  fecha: string;
+  totalComprobantes: number;
+  totalBoletas: number;
+  totalFacturas: number;
+  totalRecaudado: number;
+  desgloseMetodos: Record<string, number>;
+}
+

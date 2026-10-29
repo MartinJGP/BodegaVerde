@@ -120,7 +120,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
           <p className="text-[11px] font-medium text-charcoal-700/70 mb-2">
             Acceso Rápido (Demostración):
           </p>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-4 gap-1.5">
             <button
               onClick={() => handleQuickLogin('mesero@bodegaverde.pe')}
               className="rounded-md border border-sand-200 bg-sand-50 py-1.5 text-[11px] font-medium text-charcoal-800 hover:bg-sand-100 btn-action"
@@ -132,6 +132,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
               className="rounded-md border border-sand-200 bg-sand-50 py-1.5 text-[11px] font-medium text-charcoal-800 hover:bg-sand-100 btn-action"
             >
               Cocina
+            </button>
+            <button
+              onClick={() => handleQuickLogin('caja@bodegaverde.pe')}
+              className="rounded-md border border-sand-200 bg-sand-50 py-1.5 text-[11px] font-medium text-charcoal-800 hover:bg-sand-100 btn-action"
+            >
+              Cajero
             </button>
             <button
               onClick={() => handleQuickLogin('admin@bodegaverde.pe')}

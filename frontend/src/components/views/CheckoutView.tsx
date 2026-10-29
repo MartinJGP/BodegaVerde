@@ -1,0 +1,997 @@
+'use client';
+
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+  Mesa,
+  Pedido,
+  Comprobante,
+  TipoComprobante,
+  MetodoPago,
+  ResumenCajaDiario,
+} from '@/types';
+import {
+  Receipt,
+  CreditCard,
+  Banknote,
+  QrCode,
+  CheckCircle2,
+  Clock,
+  Printer,
+  FileText,
+  DollarSign,
+  AlertCircle,
+  Sparkles,
+  Search,
+  ArrowRight,
+  X,
+  Building2,
+  Percent,
+} from 'lucide-react';
+import { api } from '@/lib/api';
+import { soundManager } from '@/lib/audio';
+
+interface CheckoutViewProps {
+  mesas: Mesa[];
+  pedidos: Pedido[];
+  onCobroCompletado: () => void;
+  showToast: (msg: string, type?: 'success' | 'alert' | 'error') => void;
+}
+
+export const CheckoutView: React.FC<CheckoutViewProps> = ({
+  mesas,
+  pedidos,
+  onCobroCompletado,
+  showToast,
+}) => {
+  const [activeTab, setActiveTab] = useState<'pendientes' | 'arqueo'>('pendientes');
+  const [selectedMesa, setSelectedMesa] = useState<Mesa | null>(null);
+  const [comprobantes, setComprobantes] = useState<Comprobante[]>([]);
+  const [resumenDiario, setResumenDiario] = useState<ResumenCajaDiario | null>(null);
+  const [loadingData, setLoadingData] = useState(false);
+
+  // Estado del Modal de Cobro
+  const [showCobroModal, setShowCobroModal] = useState(false);
+  const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('BOLETA');
+  const [clienteNombre, setClienteNombre] = useState('');
+  const [clienteDocumento, setClienteDocumento] = useState('');
+  const [metodoPago, setMetodoPago] = useState<MetodoPago>('EFECTIVO');
+  const [montoRecibido, setMontoRecibido] = useState<string>('');
+  const [referenciaPago, setReferenciaPago] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Modal de Visualización de Ticket
+  const [ticketParaVer, setTicketParaVer] = useState<Comprobante | null>(null);
+
+  // Cargar comprobantes y resumen de caja
+  const loadHistorial = useCallback(async () => {
+    setLoadingData(true);
+    try {
+      const [resComprobantes, resResumen] = await Promise.allSettled([
+        api.getComprobantes(),
+        api.getResumenCajaDiario(),
+      ]);
+
+      if (resComprobantes.status === 'fulfilled') {
+        setComprobantes(resComprobantes.value);
+      }
+      if (resResumen.status === 'fulfilled') {
+        setResumenDiario(resResumen.value);
+      }
+    } catch (err: any) {
+      console.error('Error cargando historial de caja:', err);
+    } finally {
+      setLoadingData(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadHistorial();
+  }, [loadHistorial]);
+
+  // Filtrar mesas con pedidos activos para cobrar (no pagados ni cancelados)
+  const mesasConCuentaActiva = useMemo(() => {
+    return mesas.map((mesa) => {
+      const pedidosMesa = pedidos.filter(
+        (p) => p.mesaId === mesa.id && p.estado !== 'PAGADO' && p.estado !== 'CANCELADO'
+      );
+      const totalPendiente = pedidosMesa.reduce((acc, p) => acc + Number(p.total), 0);
+      return {
+        ...mesa,
+        pedidosActivos: pedidosMesa,
+        totalPendiente,
+      };
+    }).filter((m) => m.pedidosActivos.length > 0 || m.estado === 'OCUPADA' || m.estado === 'EN_PAGO');
+  }, [mesas, pedidos]);
+
+  // Pedido actualmente seleccionado para pre-cuenta o cobro
+  const pedidoActivoMesa = useMemo(() => {
+    if (!selectedMesa) return null;
+    return (
+      pedidos.find(
+        (p) =>
+          p.mesaId === selectedMesa.id &&
+          p.estado !== 'PAGADO' &&
+          p.estado !== 'CANCELADO'
+      ) || null
+    );
+  }, [selectedMesa, pedidos]);
+
+  // Cálculos de la pre-cuenta seleccionada
+  const calculosPrecuenta = useMemo(() => {
+    if (!pedidoActivoMesa) return { subtotal: 0, igv: 0, total: 0 };
+    const total = Number(pedidoActivoMesa.total);
+    const subtotal = Number((total / 1.18).toFixed(2));
+    const igv = Number((total - subtotal).toFixed(2));
+    return { subtotal, igv, total };
+  }, [pedidoActivoMesa]);
+
+  // Vuelto calculado para pagos en efectivo
+  const vueltoCalculado = useMemo(() => {
+    if (metodoPago !== 'EFECTIVO' || !montoRecibido || !pedidoActivoMesa) return 0;
+    const recibido = parseFloat(montoRecibido);
+    const total = Number(pedidoActivoMesa.total);
+    if (isNaN(recibido) || recibido < total) return 0;
+    return Number((recibido - total).toFixed(2));
+  }, [metodoPago, montoRecibido, pedidoActivoMesa]);
+
+  // Abrir modal de cobro
+  const handleIniciarCobro = (mesa: Mesa) => {
+    setSelectedMesa(mesa);
+    const ped = pedidos.find(
+      (p) => p.mesaId === mesa.id && p.estado !== 'PAGADO' && p.estado !== 'CANCELADO'
+    );
+    if (!ped) {
+      showToast('No se encontró un pedido activo en esta mesa', 'alert');
+      return;
+    }
+    setTipoComprobante('BOLETA');
+    setClienteNombre('');
+    setClienteDocumento('');
+    setMetodoPago('EFECTIVO');
+    setMontoRecibido(String(Number(ped.total).toFixed(2)));
+    setReferenciaPago('');
+    setShowCobroModal(true);
+  };
+
+  // Procesar cobro en backend
+  const handleConfirmarCobro = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pedidoActivoMesa) return;
+
+    if (tipoComprobante === 'FACTURA' && (!clienteDocumento || clienteDocumento.length !== 11)) {
+      showToast('La factura requiere un número de RUC válido de 11 dígitos', 'alert');
+      return;
+    }
+
+    if (metodoPago === 'EFECTIVO') {
+      const recibido = parseFloat(montoRecibido);
+      if (isNaN(recibido) || recibido < Number(pedidoActivoMesa.total)) {
+        showToast('El monto recibido en efectivo no puede ser menor al total', 'alert');
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await api.emitirComprobante({
+        pedidoId: pedidoActivoMesa.id,
+        tipo: tipoComprobante,
+        clienteNombre: clienteNombre.trim() || (tipoComprobante === 'FACTURA' ? 'Empresa Cliente' : 'Clientes Varios'),
+        clienteDocumento: clienteDocumento.trim() || undefined,
+        pagos: [
+          {
+            metodoPago,
+            monto: Number(pedidoActivoMesa.total),
+            montoRecibido: metodoPago === 'EFECTIVO' ? parseFloat(montoRecibido) : undefined,
+            vuelto: metodoPago === 'EFECTIVO' ? vueltoCalculado : undefined,
+            referencia: referenciaPago.trim() || undefined,
+          },
+        ],
+      });
+
+      soundManager.playActionComplete();
+      showToast(
+        `${res.comprobante.tipo} ${res.comprobante.serie}-${String(res.comprobante.numeroCorrelativo).padStart(6, '0')} emitida con éxito. Mesa #${selectedMesa?.numero} liberada.`,
+        'success'
+      );
+
+      setShowCobroModal(false);
+      setSelectedMesa(null);
+      setTicketParaVer(res.comprobante);
+      onCobroCompletado();
+      loadHistorial();
+    } catch (err: any) {
+      showToast(err.message || 'Error al procesar el cobro', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+      {/* ============================================================ */}
+      {/* BANNER DE ESTADO DEL PROYECTO: 80% COMPLETADO               */}
+      {/* ============================================================ */}
+      <div className="mb-6 rounded-xl border border-sage-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="inline-flex items-center rounded-full bg-sage-100 px-2.5 py-0.5 text-xs font-semibold text-sage-800">
+                Fase de Pruebas y Certificación
+              </span>
+              <span className="inline-flex items-center rounded-full bg-amberPastel-100 px-2.5 py-0.5 text-xs font-semibold text-amberPastel-800">
+                80% de Avance del Proyecto
+              </span>
+            </div>
+            <h2 className="mt-1 text-lg font-semibold text-charcoal-900">
+              Módulo de Cierre de Cuenta y Checkout (RF-09 al RF-14)
+            </h2>
+            <p className="text-xs text-charcoal-700/80">
+              Liquidación de consumos, emisión de boletas/facturas fiscales con desglose de IGV, soporte multi-método y liberación de mesas en tiempo real.
+            </p>
+          </div>
+
+          <div className="w-full md:w-64">
+            <div className="flex items-center justify-between text-xs font-medium text-charcoal-700 mb-1">
+              <span>Progreso de implementación</span>
+              <span className="font-bold text-sage-700">80%</span>
+            </div>
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-sand-200">
+              <div
+                className="h-full rounded-full bg-sage-500 transition-all duration-500"
+                style={{ width: '80%' }}
+              />
+            </div>
+            <p className="mt-1 text-[11px] text-charcoal-700/60 text-right">
+              20% pendiente: Webhook SUNAT PSE & Impresora Térmica
+            </p>
+          </div>
+        </div>
+
+        {/* Tags de Trazabilidad */}
+        <div className="mt-4 flex flex-wrap gap-2 border-t border-sand-100 pt-3">
+          <span className="inline-flex items-center rounded-md bg-sage-50 px-2 py-1 text-[11px] font-medium text-sage-700 border border-sage-200/60">
+            <CheckCircle2 className="mr-1 h-3 w-3 text-sage-600" /> RF-09: Pre-cuenta en mesa
+          </span>
+          <span className="inline-flex items-center rounded-md bg-sage-50 px-2 py-1 text-[11px] font-medium text-sage-700 border border-sage-200/60">
+            <CheckCircle2 className="mr-1 h-3 w-3 text-sage-600" /> RF-10: Verificación de comanda
+          </span>
+          <span className="inline-flex items-center rounded-md bg-sage-50 px-2 py-1 text-[11px] font-medium text-sage-700 border border-sage-200/60">
+            <CheckCircle2 className="mr-1 h-3 w-3 text-sage-600" /> RF-11: Cobro multi-método
+          </span>
+          <span className="inline-flex items-center rounded-md bg-sage-50 px-2 py-1 text-[11px] font-medium text-sage-700 border border-sage-200/60">
+            <CheckCircle2 className="mr-1 h-3 w-3 text-sage-600" /> RF-12: Boleta y Factura electrónica
+          </span>
+          <span className="inline-flex items-center rounded-md bg-sage-50 px-2 py-1 text-[11px] font-medium text-sage-700 border border-sage-200/60">
+            <CheckCircle2 className="mr-1 h-3 w-3 text-sage-600" /> RF-13: Arqueo y auditoría de caja
+          </span>
+          <span className="inline-flex items-center rounded-md bg-sage-50 px-2 py-1 text-[11px] font-medium text-sage-700 border border-sage-200/60">
+            <CheckCircle2 className="mr-1 h-3 w-3 text-sage-600" /> RF-14: Liberación de mesa (WS)
+          </span>
+          <span className="inline-flex items-center rounded-md bg-sand-100 px-2 py-1 text-[11px] font-medium text-charcoal-700 border border-sand-300/60 opacity-80">
+            <Clock className="mr-1 h-3 w-3 text-amberPastel-600" /> Sandbox SUNAT PSE (En integración)
+          </span>
+          <span className="inline-flex items-center rounded-md bg-sand-100 px-2 py-1 text-[11px] font-medium text-charcoal-700 border border-sand-300/60 opacity-80">
+            <Printer className="mr-1 h-3 w-3 text-amberPastel-600" /> Driver ESC/POS (En desarrollo)
+          </span>
+        </div>
+      </div>
+
+      {/* ============================================================ */}
+      {/* PESTAÑAS OPERATIVAS: CUENTAS ACTIVAS / ARQUEO DIARIO        */}
+      {/* ============================================================ */}
+      <div className="mb-6 flex items-center justify-between border-b border-sand-200 pb-3">
+        <div className="flex space-x-2">
+          <button
+            onClick={() => setActiveTab('pendientes')}
+            className={`flex items-center space-x-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all ${
+              activeTab === 'pendientes'
+                ? 'bg-sage-600 text-white shadow-sm'
+                : 'bg-white text-charcoal-700 hover:bg-sand-100 border border-sand-200'
+            }`}
+          >
+            <Receipt className="h-4 w-4" />
+            <span>Cuentas por Cobrar ({mesasConCuentaActiva.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('arqueo')}
+            className={`flex items-center space-x-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all ${
+              activeTab === 'arqueo'
+                ? 'bg-sage-600 text-white shadow-sm'
+                : 'bg-white text-charcoal-700 hover:bg-sand-100 border border-sand-200'
+            }`}
+          >
+            <DollarSign className="h-4 w-4" />
+            <span>Historial y Arqueo de Caja</span>
+          </button>
+        </div>
+
+        <button
+          onClick={loadHistorial}
+          className="text-xs text-charcoal-700 hover:text-charcoal-900 flex items-center space-x-1"
+        >
+          <span>Actualizar datos</span>
+        </button>
+      </div>
+
+      {/* ============================================================ */}
+      {/* TAB 1: CUENTAS POR COBRAR (MESAS ACTIVAS)                    */}
+      {/* ============================================================ */}
+      {activeTab === 'pendientes' && (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          {/* Listado de Mesas con Cuentas Pendientes */}
+          <div className="lg:col-span-2">
+            <h3 className="text-sm font-semibold text-charcoal-900 mb-3 flex items-center space-x-2">
+              <span>Mesas en Salón Pendientes de Cierre</span>
+              <span className="text-xs font-normal text-charcoal-700/60">
+                (Seleccione una mesa para generar pre-cuenta o emitir comprobante)
+              </span>
+            </h3>
+
+            {mesasConCuentaActiva.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-sand-300 bg-white p-8 text-center">
+                <Receipt className="mx-auto h-8 w-8 text-charcoal-700/40" />
+                <p className="mt-2 text-xs font-medium text-charcoal-800">
+                  No hay cuentas pendientes por cobrar en este momento
+                </p>
+                <p className="text-[11px] text-charcoal-700/60">
+                  Todas las mesas activas están al día o libres en salón.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {mesasConCuentaActiva.map((mesa) => {
+                  const isSelected = selectedMesa?.id === mesa.id;
+                  const pedido = mesa.pedidosActivos[0];
+                  return (
+                    <div
+                      key={mesa.id}
+                      onClick={() => setSelectedMesa(mesa)}
+                      className={`cursor-pointer rounded-xl border p-4 transition-all ${
+                        isSelected
+                          ? 'border-sage-500 bg-sage-50/50 shadow-sm ring-1 ring-sage-500'
+                          : 'border-sand-200 bg-white hover:border-sand-300 hover:shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sand-100 font-bold text-sm text-charcoal-800">
+                            #{mesa.numero}
+                          </span>
+                          <div>
+                            <h4 className="text-xs font-semibold text-charcoal-900">
+                              Mesa {mesa.numero}
+                            </h4>
+                            <p className="text-[11px] text-charcoal-700/60">
+                              Capacidad: {mesa.capacidad} personas
+                            </p>
+                          </div>
+                        </div>
+
+                        <span className="rounded-full bg-amberPastel-100 px-2 py-0.5 text-[10px] font-semibold text-amberPastel-800">
+                          {pedido ? pedido.estado : mesa.estado}
+                        </span>
+                      </div>
+
+                      {pedido ? (
+                        <div className="mt-3 border-t border-sand-100 pt-2.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-charcoal-700/70">Comanda #{pedido.id}</span>
+                            <span className="font-bold text-sage-800">
+                              S/ {Number(pedido.total).toFixed(2)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-[11px] text-charcoal-700/60 truncate">
+                            Atendido por: {pedido.usuario?.nombre || 'Mesero'} • {pedido.detalles?.length || 0} platos
+                          </p>
+                          <div className="mt-3 flex space-x-2">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedMesa(mesa);
+                              }}
+                              className="flex-1 rounded-md border border-sand-300 bg-white py-1.5 text-center text-xs font-medium text-charcoal-800 hover:bg-sand-50"
+                            >
+                              Ver Pre-cuenta
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleIniciarCobro(mesa);
+                              }}
+                              className="flex-1 rounded-md bg-sage-600 py-1.5 text-center text-xs font-semibold text-white hover:bg-sage-700 shadow-xs"
+                            >
+                              Cobrar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-3 border-t border-sand-100 pt-2 text-[11px] text-charcoal-700/60">
+                          Sin pedido registrado en sistema
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Panel Lateral: Pre-cuenta de Consumo en Mesa (RF-09) */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-20 rounded-xl border border-sand-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between border-b border-sand-200 pb-3">
+                <div className="flex items-center space-x-2">
+                  <Receipt className="h-4 w-4 text-sage-700" />
+                  <h3 className="text-sm font-semibold text-charcoal-900">
+                    Pre-cuenta en Mesa
+                  </h3>
+                </div>
+                {selectedMesa && (
+                  <span className="rounded-md bg-sand-100 px-2 py-0.5 text-xs font-bold text-charcoal-800">
+                    Mesa #{selectedMesa.numero}
+                  </span>
+                )}
+              </div>
+
+              {pedidoActivoMesa ? (
+                <div className="mt-4 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-charcoal-700/70 mb-2">
+                      <span>Comanda #{pedidoActivoMesa.id}</span>
+                      <span>
+                        {new Date(pedidoActivoMesa.fechaCreacion).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+
+                    {/* Desglose de Ítems */}
+                    <div className="max-h-60 overflow-y-auto space-y-2 border-y border-sand-100 py-3">
+                      {pedidoActivoMesa.detalles?.map((det, idx) => (
+                        <div key={idx} className="flex justify-between text-xs">
+                          <div className="pr-2">
+                            <span className="font-medium text-charcoal-900">
+                              {det.cantidad}x {det.plato?.nombre || 'Plato'}
+                            </span>
+                            {det.notasPersonalizadas && (
+                              <p className="text-[10px] text-charcoal-700/60 italic">
+                                Nota: {det.notasPersonalizadas}
+                              </p>
+                            )}
+                          </div>
+                          <span className="font-semibold text-charcoal-800 whitespace-nowrap">
+                            S/ {(det.cantidad * Number(det.precioUnitario)).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Resumen Tributario */}
+                    <div className="mt-3 space-y-1.5 text-xs text-charcoal-700">
+                      <div className="flex justify-between">
+                        <span>Base Imponible (Subtotal):</span>
+                        <span>S/ {calculosPrecuenta.subtotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>I.G.V. (18%):</span>
+                        <span>S/ {calculosPrecuenta.igv.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between border-t border-sand-200 pt-2 text-sm font-bold text-charcoal-900">
+                        <span>Total a Pagar:</span>
+                        <span className="text-sage-700 font-extrabold">
+                          S/ {calculosPrecuenta.total.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Acciones */}
+                  <div className="mt-6 space-y-2">
+                    <button
+                      onClick={() => handleIniciarCobro(selectedMesa!)}
+                      className="w-full flex items-center justify-center space-x-2 rounded-lg bg-sage-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-sage-700 shadow-sm"
+                    >
+                      <CreditCard className="h-4 w-4" />
+                      <span>Proceder al Cobro y Emisión</span>
+                    </button>
+                    <p className="text-[10px] text-center text-charcoal-700/60">
+                      El cobro actualizará el pedido a PAGADO y liberará la mesa automáticamente vía WebSockets.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-8 text-center text-xs text-charcoal-700/60">
+                  Seleccione una mesa con pedido para ver el cálculo detallado de la pre-cuenta.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* TAB 2: ARQUEO DE CAJA Y HISTORIAL DE COMPROBANTES (RF-13)   */}
+      {/* ============================================================ */}
+      {activeTab === 'arqueo' && (
+        <div className="space-y-6">
+          {/* Tarjetas de Arqueo Diario */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-sand-200 bg-white p-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-charcoal-700/70">Total Recaudado Hoy</span>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sage-50 text-sage-600">
+                  <DollarSign className="h-4 w-4" />
+                </span>
+              </div>
+              <p className="mt-2 text-xl font-bold text-charcoal-900">
+                S/ {resumenDiario ? resumenDiario.totalRecaudado.toFixed(2) : '0.00'}
+              </p>
+              <p className="text-[11px] text-charcoal-700/60 mt-1">
+                {resumenDiario?.totalComprobantes || 0} comprobantes emitidos
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-sand-200 bg-white p-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-charcoal-700/70">Efectivo en Caja</span>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sand-100 text-charcoal-700">
+                  <Banknote className="h-4 w-4" />
+                </span>
+              </div>
+              <p className="mt-2 text-xl font-bold text-charcoal-900">
+                S/ {resumenDiario?.desgloseMetodos?.EFECTIVO ? resumenDiario.desgloseMetodos.EFECTIVO.toFixed(2) : '0.00'}
+              </p>
+              <p className="text-[11px] text-charcoal-700/60 mt-1">
+                Efectivo neto para arqueo físico
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-sand-200 bg-white p-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-charcoal-700/70">Pagos Digitales (POS / QR)</span>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amberPastel-50 text-amberPastel-700">
+                  <CreditCard className="h-4 w-4" />
+                </span>
+              </div>
+              <p className="mt-2 text-xl font-bold text-charcoal-900">
+                S/{' '}
+                {(
+                  (resumenDiario?.desgloseMetodos?.TARJETA || 0) +
+                  (resumenDiario?.desgloseMetodos?.YAPE || 0) +
+                  (resumenDiario?.desgloseMetodos?.PLIN || 0)
+                ).toFixed(2)}
+              </p>
+              <p className="text-[11px] text-charcoal-700/60 mt-1">
+                POS: S/ {resumenDiario?.desgloseMetodos?.TARJETA || 0} • Yape/Plin: S/{' '}
+                {(resumenDiario?.desgloseMetodos?.YAPE || 0) + (resumenDiario?.desgloseMetodos?.PLIN || 0)}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-sand-200 bg-white p-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-charcoal-700/70">Boletas vs Facturas</span>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sand-100 text-charcoal-700">
+                  <FileText className="h-4 w-4" />
+                </span>
+              </div>
+              <p className="mt-2 text-xl font-bold text-charcoal-900">
+                {resumenDiario?.totalBoletas || 0} B / {resumenDiario?.totalFacturas || 0} F
+              </p>
+              <p className="text-[11px] text-charcoal-700/60 mt-1">
+                Series B001 y F001 activas
+              </p>
+            </div>
+          </div>
+
+          {/* Tabla de Comprobantes Emitidos */}
+          <div className="rounded-xl border border-sand-200 bg-white shadow-xs overflow-hidden">
+            <div className="flex items-center justify-between border-b border-sand-200 px-5 py-3.5">
+              <h3 className="text-xs font-semibold text-charcoal-900">
+                Registro de Comprobantes Emitidos (Libro de Ventas Diario)
+              </h3>
+              <span className="text-[11px] text-charcoal-700/60">
+                Total registros: {comprobantes.length}
+              </span>
+            </div>
+
+            {loadingData ? (
+              <div className="p-8 text-center text-xs text-charcoal-700/60">
+                Cargando comprobantes...
+              </div>
+            ) : comprobantes.length === 0 ? (
+              <div className="p-8 text-center text-xs text-charcoal-700/60">
+                No se han emitido comprobantes aún. Realice el cobro de una mesa para generar la primera boleta o factura.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-sand-50/70 border-b border-sand-200 text-charcoal-700/80 font-medium">
+                    <tr>
+                      <th className="px-4 py-2.5">Comprobante</th>
+                      <th className="px-4 py-2.5">Cliente</th>
+                      <th className="px-4 py-2.5">Mesa / Comanda</th>
+                      <th className="px-4 py-2.5">Medio de Pago</th>
+                      <th className="px-4 py-2.5">Subtotal</th>
+                      <th className="px-4 py-2.5">IGV (18%)</th>
+                      <th className="px-4 py-2.5">Total</th>
+                      <th className="px-4 py-2.5">Fecha / Hora</th>
+                      <th className="px-4 py-2.5 text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-sand-100">
+                    {comprobantes.map((c) => (
+                      <tr key={c.id} className="hover:bg-sand-50/50">
+                        <td className="px-4 py-3 font-semibold text-charcoal-900 whitespace-nowrap">
+                          {c.serie}-{String(c.numeroCorrelativo).padStart(6, '0')}
+                          <span
+                            className={`ml-2 inline-block rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                              c.tipo === 'FACTURA'
+                                ? 'bg-amberPastel-100 text-amberPastel-800'
+                                : 'bg-sage-100 text-sage-800'
+                            }`}
+                          >
+                            {c.tipo}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-charcoal-800">
+                          <div>{c.clienteNombre || 'Clientes Varios'}</div>
+                          {c.clienteDocumento && (
+                            <div className="text-[10px] text-charcoal-700/60">
+                              Doc: {c.clienteDocumento}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-charcoal-700 whitespace-nowrap">
+                          Mesa #{c.pedido?.mesa?.numero || '-'} (Ped #{c.pedidoId})
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {c.pagos?.map((p, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-block rounded bg-sand-100 px-2 py-0.5 text-[10px] font-medium text-charcoal-800 mr-1"
+                            >
+                              {p.metodoPago} (S/ {Number(p.monto).toFixed(2)})
+                            </span>
+                          ))}
+                        </td>
+                        <td className="px-4 py-3 text-charcoal-700">
+                          S/ {Number(c.subtotal).toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-charcoal-700">
+                          S/ {Number(c.igv).toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 font-bold text-sage-800 whitespace-nowrap">
+                          S/ {Number(c.total).toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-charcoal-700/70 whitespace-nowrap">
+                          {new Date(c.fechaEmision).toLocaleString([], {
+                            dateStyle: 'short',
+                            timeStyle: 'short',
+                          })}
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <button
+                            onClick={() => setTicketParaVer(c)}
+                            className="inline-flex items-center space-x-1 rounded-md border border-sand-300 bg-white px-2.5 py-1 text-[11px] font-medium text-charcoal-800 hover:bg-sand-50"
+                          >
+                            <Printer className="h-3 w-3 text-charcoal-600" />
+                            <span>Ver Ticket</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* MODAL DE LIQUIDACIÓN Y COBRO (RF-11, RF-12)                  */}
+      {/* ============================================================ */}
+      {showCobroModal && selectedMesa && pedidoActivoMesa && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-charcoal-900/40 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl border border-sand-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-sand-200 pb-3">
+              <div>
+                <h3 className="text-base font-semibold text-charcoal-900">
+                  Cobrar Cuenta - Mesa #{selectedMesa.numero}
+                </h3>
+                <p className="text-xs text-charcoal-700/70">
+                  Comanda #{pedidoActivoMesa.id} • Total: S/ {Number(pedidoActivoMesa.total).toFixed(2)}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowCobroModal(false)}
+                className="rounded-lg p-1 text-charcoal-500 hover:bg-sand-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmarCobro} className="mt-4 space-y-4">
+              {/* Selector de Tipo de Comprobante */}
+              <div>
+                <label className="block text-xs font-medium text-charcoal-700 mb-1">
+                  Tipo de Comprobante Fiscal
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTipoComprobante('BOLETA')}
+                    className={`flex items-center justify-center space-x-2 rounded-lg border p-2.5 text-xs font-semibold ${
+                      tipoComprobante === 'BOLETA'
+                        ? 'border-sage-500 bg-sage-50 text-sage-800 ring-1 ring-sage-500'
+                        : 'border-sand-200 bg-white text-charcoal-700 hover:bg-sand-50'
+                    }`}
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span>Boleta de Venta (B001)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTipoComprobante('FACTURA')}
+                    className={`flex items-center justify-center space-x-2 rounded-lg border p-2.5 text-xs font-semibold ${
+                      tipoComprobante === 'FACTURA'
+                        ? 'border-sage-500 bg-sage-50 text-sage-800 ring-1 ring-sage-500'
+                        : 'border-sand-200 bg-white text-charcoal-700 hover:bg-sand-50'
+                    }`}
+                  >
+                    <Building2 className="h-4 w-4" />
+                    <span>Factura Electrónica (F001)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Datos del Cliente */}
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[11px] font-medium text-charcoal-700">
+                    {tipoComprobante === 'FACTURA' ? 'RUC de la Empresa *' : 'DNI del Cliente (Opcional)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={clienteDocumento}
+                    onChange={(e) => setClienteDocumento(e.target.value)}
+                    placeholder={tipoComprobante === 'FACTURA' ? '20601234567' : '72123456'}
+                    maxLength={tipoComprobante === 'FACTURA' ? 11 : 8}
+                    required={tipoComprobante === 'FACTURA'}
+                    className="mt-1 w-full rounded-lg border border-sand-300 px-3 py-1.5 text-xs focus:border-sage-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-charcoal-700">
+                    {tipoComprobante === 'FACTURA' ? 'Razón Social *' : 'Nombre del Cliente'}
+                  </label>
+                  <input
+                    type="text"
+                    value={clienteNombre}
+                    onChange={(e) => setClienteNombre(e.target.value)}
+                    placeholder={tipoComprobante === 'FACTURA' ? 'Empresa SAC' : 'Clientes Varios'}
+                    required={tipoComprobante === 'FACTURA'}
+                    className="mt-1 w-full rounded-lg border border-sand-300 px-3 py-1.5 text-xs focus:border-sage-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Método de Pago */}
+              <div>
+                <label className="block text-xs font-medium text-charcoal-700 mb-1">
+                  Método de Pago
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {(['EFECTIVO', 'TARJETA', 'YAPE', 'PLIN'] as MetodoPago[]).map((metodo) => (
+                    <button
+                      key={metodo}
+                      type="button"
+                      onClick={() => setMetodoPago(metodo)}
+                      className={`flex flex-col items-center justify-center rounded-lg border p-2 text-xs font-semibold ${
+                        metodoPago === metodo
+                          ? 'border-sage-500 bg-sage-50 text-sage-800 ring-1 ring-sage-500'
+                          : 'border-sand-200 bg-white text-charcoal-700 hover:bg-sand-50'
+                      }`}
+                    >
+                      {metodo === 'EFECTIVO' && <Banknote className="h-4 w-4 mb-1" />}
+                      {metodo === 'TARJETA' && <CreditCard className="h-4 w-4 mb-1" />}
+                      {metodo === 'YAPE' && <QrCode className="h-4 w-4 mb-1" />}
+                      {metodo === 'PLIN' && <QrCode className="h-4 w-4 mb-1" />}
+                      <span className="text-[10px]">{metodo}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Campos dinámicos según el método */}
+              {metodoPago === 'EFECTIVO' ? (
+                <div className="rounded-lg bg-sand-50 p-3 border border-sand-200 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-charcoal-700">Monto total a cobrar:</span>
+                    <span className="font-bold text-charcoal-900">
+                      S/ {Number(pedidoActivoMesa.total).toFixed(2)}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-charcoal-700">
+                      Monto Recibido del Cliente (S/)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.10"
+                      value={montoRecibido}
+                      onChange={(e) => setMontoRecibido(e.target.value)}
+                      placeholder="0.00"
+                      required
+                      className="mt-1 w-full rounded-lg border border-sand-300 bg-white px-3 py-1.5 text-xs font-semibold text-charcoal-900 focus:border-sage-500 focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-xs border-t border-sand-200 pt-2">
+                    <span className="font-medium text-charcoal-800">Vuelto a entregar:</span>
+                    <span
+                      className={`font-extrabold ${
+                        vueltoCalculado > 0 ? 'text-sage-700' : 'text-charcoal-700'
+                      }`}
+                    >
+                      S/ {vueltoCalculado.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg bg-sand-50 p-3 border border-sand-200 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-charcoal-700">Monto a liquidar:</span>
+                    <span className="font-bold text-charcoal-900">
+                      S/ {Number(pedidoActivoMesa.total).toFixed(2)}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-charcoal-700">
+                      {metodoPago === 'TARJETA'
+                        ? 'Nº de Operación / Voucher POS'
+                        : 'Código de Operación o Aprobación Móvil'}
+                    </label>
+                    <input
+                      type="text"
+                      value={referenciaPago}
+                      onChange={(e) => setReferenciaPago(e.target.value)}
+                      placeholder="Ej. OP-49201"
+                      className="mt-1 w-full rounded-lg border border-sand-300 bg-white px-3 py-1.5 text-xs focus:border-sage-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Botón de Emisión */}
+              <div className="flex items-center justify-end space-x-2 border-t border-sand-200 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowCobroModal(false)}
+                  className="rounded-lg border border-sand-300 px-3 py-1.5 text-xs font-medium text-charcoal-700 hover:bg-sand-100"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex items-center space-x-1.5 rounded-lg bg-sage-600 px-4 py-2 text-xs font-semibold text-white hover:bg-sage-700 disabled:opacity-50 shadow-sm"
+                >
+                  {isSubmitting ? (
+                    <span>Emitiendo comprobante...</span>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span>Confirmar Pago y Liberar Mesa</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* MODAL DE TICKET FISCAL DIGITAL                               */}
+      {/* ============================================================ */}
+      {ticketParaVer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-charcoal-900/40 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-sand-200 font-mono text-xs">
+            <div className="text-center border-b border-dashed border-sand-300 pb-3">
+              <h2 className="font-bold text-sm tracking-tight text-charcoal-900">
+                LA BODEGA VERDE
+              </h2>
+              <p className="text-[10px] text-charcoal-700/80">RUC: 20518934121</p>
+              <p className="text-[10px] text-charcoal-700/80">Jr. Sucre 335A, Barranco - Lima</p>
+              <div className="mt-2 inline-block rounded border border-sand-300 bg-sand-50 px-2 py-0.5 text-[10px] font-bold">
+                {ticketParaVer.tipo} ELECTRÓNICA
+              </div>
+              <p className="mt-1 font-bold text-charcoal-900">
+                {ticketParaVer.serie}-{String(ticketParaVer.numeroCorrelativo).padStart(6, '0')}
+              </p>
+            </div>
+
+            <div className="py-2.5 border-b border-dashed border-sand-300 space-y-1 text-[11px] text-charcoal-800">
+              <p>Fecha: {new Date(ticketParaVer.fechaEmision).toLocaleString()}</p>
+              <p>Cliente: {ticketParaVer.clienteNombre || 'Clientes Varios'}</p>
+              {ticketParaVer.clienteDocumento && <p>Doc: {ticketParaVer.clienteDocumento}</p>}
+              <p>Mesa: #{ticketParaVer.pedido?.mesa?.numero || selectedMesa?.numero || '-'}</p>
+            </div>
+
+            {/* Ítems del Pedido */}
+            <div className="py-2.5 border-b border-dashed border-sand-300 space-y-1.5 text-[11px]">
+              {ticketParaVer.pedido?.detalles?.map((det, idx) => (
+                <div key={idx} className="flex justify-between">
+                  <span>
+                    {det.cantidad}x {det.plato?.nombre || 'Ítem'}
+                  </span>
+                  <span>S/ {(det.cantidad * Number(det.precioUnitario)).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Totales */}
+            <div className="py-2.5 border-b border-dashed border-sand-300 space-y-1 text-[11px]">
+              <div className="flex justify-between">
+                <span>OP. GRAVADA:</span>
+                <span>S/ {Number(ticketParaVer.subtotal).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>I.G.V. (18%):</span>
+                <span>S/ {Number(ticketParaVer.igv).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-xs pt-1">
+                <span>IMPORTE TOTAL:</span>
+                <span>S/ {Number(ticketParaVer.total).toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Detalle del Pago */}
+            <div className="py-2.5 text-[10px] text-charcoal-700 space-y-0.5">
+              {ticketParaVer.pagos?.map((p, idx) => (
+                <div key={idx} className="flex justify-between">
+                  <span>FORMA DE PAGO: {p.metodoPago}</span>
+                  <span>S/ {Number(p.monto).toFixed(2)}</span>
+                </div>
+              ))}
+              {ticketParaVer.pagos?.[0]?.vuelto && (
+                <div className="flex justify-between text-sage-800 font-bold">
+                  <span>VUELTO:</span>
+                  <span>S/ {Number(ticketParaVer.pagos[0].vuelto).toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 border-t border-dashed border-sand-300 pt-3 text-center text-[10px] text-charcoal-700/70">
+              <p>¡Gracias por su visita a La Bodega Verde!</p>
+              <p>Representación impresa de comprobante electrónico</p>
+            </div>
+
+            <div className="mt-4 flex space-x-2">
+              <button
+                onClick={() => window.print()}
+                className="flex-1 flex items-center justify-center space-x-1 rounded-lg border border-sand-300 bg-sand-50 py-1.5 text-xs font-medium text-charcoal-800 hover:bg-sand-100"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                <span>Imprimir</span>
+              </button>
+              <button
+                onClick={() => setTicketParaVer(null)}
+                className="flex-1 rounded-lg bg-sage-600 py-1.5 text-xs font-semibold text-white hover:bg-sage-700"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

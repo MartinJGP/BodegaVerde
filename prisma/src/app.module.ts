@@ -11,6 +11,7 @@ import { InsumosModule } from './insumos/insumos.module.js';
 import { CategoriasModule } from './categorias/categorias.module.js';
 import { ProveedoresModule } from './proveedores/proveedores.module.js';
 import { ComprasModule } from './compras/compras.module.js';
+import { ComprobantesModule } from './comprobantes/comprobantes.module.js';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ComprasModule } from './compras/compras.module.js';
     PedidosModule,
     ProveedoresModule,
     ComprasModule,
+    ComprobantesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

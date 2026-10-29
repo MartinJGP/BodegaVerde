@@ -6,7 +6,7 @@ import { LoginModal } from '@/components/LoginModal';
 import { NotificationToast } from '@/components/NotificationToast';
 import { MeseroView } from '@/components/views/MeseroView';
 import { CocinaView } from '@/components/views/CocinaView';
-import { AdminView } from '@/components/views/AdminView';
+import { CheckoutView } from '@/components/views/CheckoutView';
 import { api } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
 import { soundManager } from '@/lib/audio';
@@ -23,7 +23,7 @@ import {
 } from '@/types';
 
 export default function Home() {
-  const [currentTab, setCurrentTab] = useState<'mesero' | 'cocina'>('mesero');
+  const [currentTab, setCurrentTab] = useState<'mesero' | 'cocina' | 'checkout'>('mesero');
   const [currentUser, setCurrentUser] = useState<{ nombre: string; rol: Rol } | null>({
     nombre: 'Carlos Mesero',
     rol: 'MESERO',
@@ -219,9 +219,19 @@ export default function Home() {
   // Cantidad de pedidos listos esperando ser servidos
   const pedidosListosCount = pedidos.filter((p) => p.estado === 'LISTO').length;
 
+  // Cantidad de cuentas activas por cobrar
+  const cuentasPendientesCount = mesas.filter(
+    (m) =>
+      m.estado === 'OCUPADA' ||
+      m.estado === 'EN_PAGO' ||
+      pedidos.some(
+        (p) => p.mesaId === m.id && p.estado !== 'PAGADO' && p.estado !== 'CANCELADO'
+      )
+  ).length;
+
   return (
     <div className="min-h-screen bg-sand-50 flex flex-col">
-      {/* Barra Superior con indicador de pedidos listos y botón de prueba sonora */}
+      {/* Barra Superior con selector de Mesero, Cocina y Caja / Checkout */}
       <Header
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
@@ -229,6 +239,7 @@ export default function Home() {
         onOpenLogin={() => setIsLoginOpen(true)}
         isConnected={isConnected}
         pedidosListosCount={pedidosListosCount}
+        cuentasPendientesCount={cuentasPendientesCount}
       />
 
       {/* Contenido Principal */}
@@ -257,6 +268,15 @@ export default function Home() {
 
             {currentTab === 'cocina' && (
               <CocinaView initialPedidos={pedidos} showToast={showToast} />
+            )}
+
+            {currentTab === 'checkout' && (
+              <CheckoutView
+                mesas={mesas}
+                pedidos={pedidos}
+                onCobroCompletado={loadInitialData}
+                showToast={showToast}
+              />
             )}
           </>
         )}

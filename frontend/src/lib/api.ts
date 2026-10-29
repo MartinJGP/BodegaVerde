@@ -7,6 +7,10 @@ import {
   LoteInsumo,
   KardexMovimiento,
   EstadoPedido,
+  Comprobante,
+  ResumenCajaDiario,
+  TipoComprobante,
+  MetodoPago,
 } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -118,6 +122,37 @@ export const api = {
     costoPromedio: number;
   }) =>
     request<Insumo>('/insumos', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // ==========================================
+  // CHECKOUT Y FACTURACIÓN (RF-09 a RF-14)
+  // ==========================================
+  getComprobantes: () => request<Comprobante[]>('/comprobantes'),
+  getComprobante: (id: number) => request<Comprobante>(`/comprobantes/${id}`),
+  getResumenCajaDiario: () => request<ResumenCajaDiario>('/comprobantes/resumen/diario'),
+  emitirComprobante: (data: {
+    pedidoId: number;
+    cajeroId?: number;
+    tipo: TipoComprobante;
+    clienteNombre?: string;
+    clienteDocumento?: string;
+    pagos: {
+      metodoPago: MetodoPago;
+      monto: number;
+      montoRecibido?: number;
+      vuelto?: number;
+      referencia?: string;
+    }[];
+  }) =>
+    request<{
+      success: boolean;
+      message: string;
+      comprobante: Comprobante;
+      pedido: Pedido;
+      mesaLiberada?: Mesa;
+    }>('/comprobantes', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
