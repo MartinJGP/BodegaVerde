@@ -49,7 +49,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   const [resumenDiario, setResumenDiario] = useState<ResumenCajaDiario | null>(null);
   const [loadingData, setLoadingData] = useState(false);
 
-  // Estado del Modal de Cobro
   const [showCobroModal, setShowCobroModal] = useState(false);
   const [tipoComprobante, setTipoComprobante] = useState<TipoComprobante>('BOLETA');
   const [clienteNombre, setClienteNombre] = useState('');
@@ -60,10 +59,8 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   const [mostrarCamposCliente, setMostrarCamposCliente] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Modal de Visualización de Ticket
   const [ticketParaVer, setTicketParaVer] = useState<Comprobante | null>(null);
 
-  // Cargar comprobantes y resumen de caja
   const loadHistorial = useCallback(async () => {
     setLoadingData(true);
     try {
@@ -89,7 +86,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     loadHistorial();
   }, [loadHistorial]);
 
-  // Filtrar mesas con pedidos activos para cobrar (no pagados ni cancelados)
   const mesasConCuentaActiva = useMemo(() => {
     return mesas.map((mesa) => {
       const pedidosMesa = pedidos.filter(
@@ -104,7 +100,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     }).filter((m) => m.pedidosActivos.length > 0 || m.estado === 'OCUPADA' || m.estado === 'EN_PAGO');
   }, [mesas, pedidos]);
 
-  // Pedido actualmente seleccionado para pre-cuenta o cobro
   const pedidoActivoMesa = useMemo(() => {
     if (!selectedMesa) return null;
     return (
@@ -117,7 +112,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     );
   }, [selectedMesa, pedidos]);
 
-  // Cálculos de la pre-cuenta seleccionada
+  // calculo de base imponible e igv 18%
   const calculosPrecuenta = useMemo(() => {
     if (!pedidoActivoMesa) return { subtotal: 0, igv: 0, total: 0 };
     const total = Number(pedidoActivoMesa.total);
@@ -126,7 +121,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     return { subtotal, igv, total };
   }, [pedidoActivoMesa]);
 
-  // Vuelto calculado para pagos en efectivo
   const vueltoCalculado = useMemo(() => {
     if (metodoPago !== 'EFECTIVO' || !montoRecibido || !pedidoActivoMesa) return 0;
     const recibido = parseFloat(montoRecibido);
@@ -135,7 +129,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     return Number((recibido - total).toFixed(2));
   }, [metodoPago, montoRecibido, pedidoActivoMesa]);
 
-  // Opciones de efectivo rápido (Square POS Quick Tender)
+  // denominaciones de efectivo rapido
   const quickCashOptions = useMemo(() => {
     if (!pedidoActivoMesa) return [];
     const total = Number(pedidoActivoMesa.total);
@@ -155,7 +149,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     return list.slice(0, 4);
   }, [pedidoActivoMesa]);
 
-  // Abrir modal de cobro
   const handleIniciarCobro = (mesa: Mesa) => {
     setSelectedMesa(mesa);
     const ped = pedidos.find(
@@ -175,7 +168,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     setShowCobroModal(true);
   };
 
-  // Procesar cobro en backend
   const handleConfirmarCobro = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pedidoActivoMesa) return;
@@ -635,13 +627,9 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* MODAL DE LIQUIDACIÓN Y COBRO REDISEÑADO (MINIMALISTA POS)    */}
-      {/* ============================================================ */}
       {showCobroModal && selectedMesa && pedidoActivoMesa && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-charcoal-900/40 p-4 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-sand-200/60 animate-in zoom-in-95 duration-150">
-            {/* Header Muted */}
             <div className="flex items-center justify-between pb-1">
               <div className="flex items-center space-x-2 text-xs font-medium text-charcoal-700/70">
                 <span className="font-semibold text-charcoal-900">Mesa #{selectedMesa.numero}</span>
@@ -660,7 +648,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
               </button>
             </div>
 
-            {/* Hero Amount Display */}
             <div className="text-center py-4">
               <span className="text-[10px] font-semibold text-charcoal-700/50 uppercase tracking-wider">
                 Monto Total a Cobrar
@@ -675,7 +662,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             </div>
 
             <form onSubmit={handleConfirmarCobro} className="space-y-4">
-              {/* Segmented Control: Tipo de Comprobante (Linear Style) */}
               <div className="space-y-2">
                 <div className="grid grid-cols-2 p-1 rounded-xl bg-sand-100 text-xs font-medium">
                   <button
@@ -708,7 +694,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   </button>
                 </div>
 
-                {/* Divulgación Progresiva: Datos de Cliente */}
                 {tipoComprobante === 'FACTURA' ? (
                   <div className="space-y-2 pt-1 animate-in fade-in duration-150">
                     <div className="grid grid-cols-2 gap-2">
@@ -784,7 +769,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                 )}
               </div>
 
-              {/* Segmented Control: Método de Pago */}
               <div className="space-y-2">
                 <div className="grid grid-cols-4 p-1 rounded-xl bg-sand-100 text-xs font-medium">
                   {(['EFECTIVO', 'TARJETA', 'YAPE', 'PLIN'] as MetodoPago[]).map((metodo) => (
@@ -806,10 +790,8 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   ))}
                 </div>
 
-                {/* Dinámica de Efectivo con Chips Rápidos (Square POS) */}
                 {metodoPago === 'EFECTIVO' ? (
                   <div className="space-y-3 pt-1">
-                    {/* Chips de Efectivo Rápido */}
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-[10px] text-charcoal-700/60 font-medium mr-1">Rápido:</span>
                       {quickCashOptions.map((opt, idx) => (
@@ -828,7 +810,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       ))}
                     </div>
 
-                    {/* Input Monto Recibido y Vuelto */}
                     <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-sand-50 border border-sand-200/80">
                       <div className="flex-1">
                         <label className="block text-[10px] font-semibold text-charcoal-700/70 uppercase">
@@ -880,7 +861,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                 )}
               </div>
 
-              {/* Botón de Acción Principal (Hero CTA) */}
               <div className="pt-2 space-y-1.5">
                 <button
                   type="submit"
@@ -909,9 +889,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* MODAL DE TICKET FISCAL DIGITAL                               */}
-      {/* ============================================================ */}
       {ticketParaVer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-charcoal-900/40 p-4 backdrop-blur-xs">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-sand-200 font-mono text-xs">

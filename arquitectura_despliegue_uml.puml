@@ -20,8 +20,8 @@ package "Capa Cliente (Frontend - Next.js 14)" {
     artifact "App Web Mesero\n(Next.js PWA)" as MeseroApp
   }
   
-  node "Pantalla de Cocina" <<device>> as KDS {
-    artifact "App Web KDS\n(Socket.io Client)" as KDSApp
+  node "Pantalla de Cocina" <<device>> as CocinaNode {
+    artifact "App Web Cocina\n(Socket.io Client)" as CocinaApp
   }
   
   node "Terminal de Caja" <<device>> as Caja {
@@ -50,7 +50,7 @@ package "Capa Servidor (Backend y Datos - Nube)" {
 MeseroApp --> REST : <<protocol>> HTTPS (JSON)\n[Registro de pedidos]
 MeseroApp <--> WS : <<protocol>> WSS (WebSockets)\n[Alertas de pedidos listos]
 
-KDSApp <--> WS : <<protocol>> WSS (WebSockets)\n[Comandas en tiempo real]
+CocinaApp <--> WS : <<protocol>> WSS (WebSockets)\n[Comandas en tiempo real]
 
 CajaApp --> REST : <<protocol>> HTTPS (JSON)\n[Cobro y facturación]
 CajaApp <--> WS : <<protocol>> WSS (WebSockets)\n[Solicitudes de cuenta]

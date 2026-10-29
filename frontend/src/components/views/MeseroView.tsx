@@ -542,7 +542,7 @@ export const MeseroView: React.FC<MeseroViewProps> = ({
               <div className="flex items-center justify-between pb-2 border-b border-sand-100">
                 <div className="flex items-center space-x-2 text-charcoal-800">
                   <ChefHat className="h-4 w-4 text-amberPastel-600 animate-pulse" />
-                  <h3 className="text-xs font-semibold">Cocinando en Cocina (KDS)</h3>
+                  <h3 className="text-xs font-semibold">Cocinando en Cocina</h3>
                 </div>
                 <span className="rounded bg-sand-100 px-2 py-0.5 text-[10px] font-semibold text-charcoal-800">
                   En preparación

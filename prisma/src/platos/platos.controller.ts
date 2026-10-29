@@ -15,7 +15,6 @@ export class PlatosController {
     return this.platosService.findOne(+id);
   }
 
-  // RF-02 y RF-03: Validar disponibilidad de insumos
   @Get(':id/disponibilidad')
   verificarDisponibilidad(@Param('id') id: string) {
     return this.platosService.verificarDisponibilidad(+id);
@@ -31,7 +30,6 @@ export class PlatosController {
     return this.platosService.update(+id, data);
   }
 
-  // RF-16: Configurar ficha técnica / receta de un plato
   @Post(':id/receta')
   configurarReceta(
     @Param('id') id: string,

@@ -15,12 +15,11 @@ export const CocinaView: React.FC<CocinaViewProps> = ({ initialPedidos, showToas
   const [pedidos, setPedidos] = useState<Pedido[]>(initialPedidos);
   const [loadingId, setLoadingId] = useState<number | null>(null);
 
-  // Cargar y escuchar eventos de WebSockets en tiempo real
+  // sincronizacion websocket en tiempo real
   useEffect(() => {
     setPedidos(initialPedidos);
     const socket = getSocket();
 
-    // Nueva comanda emitida por el mesero
     socket.on('nuevo_pedido_cocina', (nuevoPedido: Pedido) => {
       setPedidos((prev) => {
         if (prev.some((p) => p.id === nuevoPedido.id)) return prev;
@@ -29,7 +28,6 @@ export const CocinaView: React.FC<CocinaViewProps> = ({ initialPedidos, showToas
       showToast(`Nueva comanda recibida para Mesa #${nuevoPedido.mesa?.numero}`, 'alert');
     });
 
-    // Actualización de estado
     socket.on('pedido_actualizado', (actualizado: any) => {
       setPedidos((prev) =>
         prev.map((p) => (p.id === actualizado.id ? { ...p, estado: actualizado.estado } : p))
@@ -42,7 +40,6 @@ export const CocinaView: React.FC<CocinaViewProps> = ({ initialPedidos, showToas
     };
   }, [initialPedidos, showToast]);
 
-  // Filtrar comandas activas en cocina (ocultar las entregadas o canceladas)
   const activePedidos = pedidos.filter(
     (p) => p.estado === 'PENDIENTE' || p.estado === 'EN_PREPARACION' || p.estado === 'LISTO'
   );
@@ -70,11 +67,10 @@ export const CocinaView: React.FC<CocinaViewProps> = ({ initialPedidos, showToas
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-      {/* Encabezado KDS */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-sand-200 mb-6 gap-2">
         <div>
           <h2 className="text-base font-semibold text-charcoal-900 tracking-tight">
-            Pantalla de Cocina (KDS)
+            Pantalla de Cocina
           </h2>
           <p className="text-xs text-charcoal-700/70">
             Comandas activas ordenadas por orden de llegada

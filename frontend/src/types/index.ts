@@ -102,10 +102,7 @@ export interface KardexMovimiento {
   usuario?: { id: number; nombre: string; rol: Rol };
 }
 
-// ==========================================
-// MÓDULO DE FACTURACIÓN Y CHECKOUT (RF-09 a RF-14)
-// ==========================================
-
+// comprobantes y caja
 export type TipoComprobante = 'BOLETA' | 'FACTURA';
 export type EstadoComprobante = 'EMITIDO' | 'ANULADO';
 export type MetodoPago = 'EFECTIVO' | 'TARJETA' | 'YAPE' | 'PLIN';

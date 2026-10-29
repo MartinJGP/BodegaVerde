@@ -15,9 +15,6 @@ import {
   Categoria,
   Plato,
   Pedido,
-  Insumo,
-  LoteInsumo,
-  KardexMovimiento,
   Rol,
   EstadoPedido,
 } from '@/types';
@@ -31,19 +28,13 @@ export default function Home() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
 
-  // Datos globales
   const [mesas, setMesas] = useState<Mesa[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [platos, setPlatos] = useState<Plato[]>([]);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
-  const [insumos, setInsumos] = useState<Insumo[]>([]);
-  const [alertasStock, setAlertasStock] = useState<Insumo[]>([]);
-  const [alertasVencer, setAlertasVencer] = useState<LoteInsumo[]>([]);
-  const [kardex, setKardex] = useState<KardexMovimiento[]>([]);
 
   const [loading, setLoading] = useState(true);
 
-  // Toast
   const [toast, setToast] = useState<{
     message: string;
     type?: 'success' | 'alert' | 'error';
@@ -57,7 +48,7 @@ export default function Home() {
     []
   );
 
-  // Desbloquear audio automáticamente con el primer gesto del usuario
+  // desbloqueo de audio al primer gesto del usuario
   useEffect(() => {
     const handleUnlock = () => {
       soundManager.unlockAudio();
@@ -74,7 +65,6 @@ export default function Home() {
     };
   }, []);
 
-  // Carga inicial de datos desde la API del backend
   const loadInitialData = useCallback(async () => {
     try {
       const [
@@ -82,29 +72,17 @@ export default function Home() {
         resCategorias,
         resPlatos,
         resPedidos,
-        resInsumos,
-        resAlertasStock,
-        resAlertasVencer,
-        resKardex,
       ] = await Promise.allSettled([
         api.getMesas(),
         api.getCategorias(),
         api.getPlatos(),
         api.getPedidos(),
-        api.getInsumos(),
-        api.getAlertasStockMinimo(),
-        api.getAlertasPorVencer(7),
-        api.getKardexGlobal(),
       ]);
 
       if (resMesas.status === 'fulfilled') setMesas(resMesas.value);
       if (resCategorias.status === 'fulfilled') setCategorias(resCategorias.value);
       if (resPlatos.status === 'fulfilled') setPlatos(resPlatos.value);
       if (resPedidos.status === 'fulfilled') setPedidos(resPedidos.value);
-      if (resInsumos.status === 'fulfilled') setInsumos(resInsumos.value);
-      if (resAlertasStock.status === 'fulfilled') setAlertasStock(resAlertasStock.value);
-      if (resAlertasVencer.status === 'fulfilled') setAlertasVencer(resAlertasVencer.value);
-      if (resKardex.status === 'fulfilled') setKardex(resKardex.value);
     } catch (err: any) {
       console.error('Error cargando datos:', err);
     } finally {
@@ -126,50 +104,39 @@ export default function Home() {
       setIsConnected(false);
     });
 
-    // Nueva comanda emitida
     socket.on('nuevo_pedido_cocina', (nuevoPedido: Pedido) => {
       setPedidos((prev) => {
         if (prev.some((p) => p.id === nuevoPedido.id)) return prev;
         return [nuevoPedido, ...prev];
       });
-      // Sincronizar estado de mesa en frontend
       setMesas((prev) =>
         prev.map((m) => (m.id === nuevoPedido.mesaId ? { ...m, estado: 'OCUPADA' } : m))
       );
     });
 
-    // Actualización de estado de pedido (cocina o entrega)
     socket.on('pedido_actualizado', (actualizado: any) => {
       setPedidos((prev) =>
         prev.map((p) => (p.id === actualizado.id ? { ...p, ...actualizado } : p))
       );
     });
 
-    // Notificación en tiempo real al mesero: plato listo
+    // notificacion sonora y toast cuando cocina despacha pedido
     socket.on(
       'notificar_mesero',
       (data: { pedidoId: number; mesaNumero?: number; mensaje: string }) => {
-        // 1. Reproducir sonido de alerta (chime armónico de restaurante)
         soundManager.playOrderReady();
-
-        // 2. Mostrar toast visual emergente
         showToast(
           data.mensaje || `Pedido #${data.pedidoId} listo para servir en mesa`,
           'success'
         );
-
-        // 3. Actualizar estado local inmediatamente para persistencia visual en mesas y banner
         setPedidos((prev) =>
           prev.map((p) => (p.id === data.pedidoId ? { ...p, estado: 'LISTO' } : p))
         );
-
-        // 4. Refrescar datos completos desde el servidor para consistencia
         api.getPedidos().then(setPedidos).catch(() => {});
         api.getMesas().then(setMesas).catch(() => {});
       }
     );
 
-    // Actualización de mesa en tiempo real (ej. desocupada o liberada)
     socket.on('mesa_actualizada', (mesaActualizada: Mesa) => {
       setMesas((prev) =>
         prev.map((m) => (m.id === mesaActualizada.id ? mesaActualizada : m))
@@ -186,18 +153,15 @@ export default function Home() {
     };
   }, [loadInitialData, showToast]);
 
-  // Al crear una orden desde el mesero
   const handleOrderCreated = async () => {
     loadInitialData();
   };
 
-  // Actualizar estado de comanda (ej. Mesero confirma entrega a comensales)
   const handleUpdatePedidoEstado = async (pedidoId: number, nuevoEstado: EstadoPedido) => {
     await api.actualizarEstadoPedido(pedidoId, nuevoEstado);
     setPedidos((prev) =>
       prev.map((p) => (p.id === pedidoId ? { ...p, estado: nuevoEstado } : p))
     );
-    // Refrescar mesas y kárdex si corresponde
     api.getMesas().then(setMesas).catch(() => {});
   };
 

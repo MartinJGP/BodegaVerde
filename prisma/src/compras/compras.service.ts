@@ -31,13 +31,12 @@ export class ComprasService {
     return orden;
   }
 
-  // RF-10: Elaborar órdenes de compra dirigidas a proveedores
+  // elaboracion de orden de compra
   async crearOrden(dto: any, usuarioId?: number) {
     if (!dto.detalles || dto.detalles.length === 0) {
       throw new BadRequestException('La orden de compra debe contener al menos un insumo');
     }
 
-    // Resolver usuario válido
     let userValidoId = usuarioId;
     if (userValidoId) {
       const existe = await this.prisma.usuario.findUnique({ where: { id: userValidoId } });
@@ -74,7 +73,6 @@ export class ComprasService {
     });
   }
 
-  // Actualizar estado simple (ej. ENVIADA)
   async actualizarEstado(id: number, estado: EstadoOrden) {
     return this.prisma.ordenCompra.update({
       where: { id },
@@ -82,7 +80,7 @@ export class ComprasService {
     });
   }
 
-  // RF-11: Registrar recepción de insumos físicos con código de lote y fecha de caducidad
+  // recepcion de insumos, creacion de lotes y kardex en transaccion
   async recepcionarInsumos(id: number, dto: any, usuarioId?: number) {
     const orden = await this.findOne(id);
     if (orden.estado === EstadoOrden.RECEPCIONADA) {
@@ -90,7 +88,6 @@ export class ComprasService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      // Resolver usuario válido
       let userValidoId = usuarioId;
       if (userValidoId) {
         const existe = await tx.usuario.findUnique({ where: { id: userValidoId } });
@@ -102,20 +99,18 @@ export class ComprasService {
         userValidoId = primerUsuario?.id || 1;
       }
 
-      // 1. Actualizar orden a RECEPCIONADA
       await tx.ordenCompra.update({
         where: { id },
         data: { estado: EstadoOrden.RECEPCIONADA }
       });
 
-      // 2. Procesar cada lote recibido
       for (const lote of dto.lotes) {
         const insumo = await tx.insumo.findUnique({ where: { id: lote.insumoId } });
         if (!insumo) throw new NotFoundException(`Insumo #${lote.insumoId} no encontrado`);
 
         const cantidadRecibida = Number(lote.cantidad);
 
-        // Crear registro de lote con fecha de caducidad (RF-11)
+        // creacion de lote con fecha de caducidad
         await tx.loteInsumo.create({
           data: {
             insumoId: lote.insumoId,
@@ -127,14 +122,14 @@ export class ComprasService {
           }
         });
 
-        // Actualizar stock del insumo
+        // actualizacion de stock de insumo
         const stockResultante = Number(insumo.stockActual) + cantidadRecibida;
         await tx.insumo.update({
           where: { id: insumo.id },
           data: { stockActual: stockResultante }
         });
 
-        // Registrar entrada en el Kárdex (RF-17)
+        // registro de movimiento en kardex
         await tx.kardexMovimiento.create({
           data: {
             insumoId: insumo.id,

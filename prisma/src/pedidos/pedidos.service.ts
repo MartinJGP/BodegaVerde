@@ -41,10 +41,9 @@ export class PedidosService {
     return pedido;
   }
 
-  // Procesa pedido con transacción ACID (descuento automático de insumos y registro en Kárdex)
+  // transaccion atomica para comanda y descuento de stock
   async crearPedido(dto: any, usuarioId?: number) {
     return this.prisma.$transaction(async (tx) => {
-      // 0. Validar existencia del usuario para evitar violaciones de clave foránea
       let userValidoId = usuarioId;
       if (userValidoId) {
         const existe = await tx.usuario.findUnique({ where: { id: userValidoId } });
@@ -52,7 +51,6 @@ export class PedidosService {
       }
 
       if (!userValidoId) {
-        // Asignar primer mesero activo disponible en la base de datos
         const mesero = await tx.usuario.findFirst({ where: { rol: 'MESERO' } });
         const primerUsuario = mesero || await tx.usuario.findFirst();
         if (!primerUsuario) {
@@ -61,7 +59,6 @@ export class PedidosService {
         userValidoId = primerUsuario.id;
       }
 
-      // 1. Crear pedido
       const pedido = await tx.pedido.create({
         data: {
           mesaId: dto.mesaId,
@@ -84,13 +81,12 @@ export class PedidosService {
         }
       });
 
-      // 2. Marcar la mesa como OCUPADA
       await tx.mesa.update({
         where: { id: dto.mesaId },
         data: { estado: EstadoMesa.OCUPADA }
       });
 
-      // 3. Descontar stock por receta de cada plato solicitado
+      // deduccion de insumos por receta
       for (const detalle of dto.detalles) {
         const receta = await tx.recetaDetalle.findMany({
           where: { platoId: detalle.platoId }
@@ -109,14 +105,12 @@ export class PedidosService {
             );
           }
 
-          // 4. Actualizar stock físico
           const stockResultante = Number(insumo.stockActual) - cantRequerida;
           await tx.insumo.update({
             where: { id: insumo.id },
             data: { stockActual: stockResultante }
           });
 
-          // 5. Registrar movimiento de auditoría en Kárdex
           await tx.kardexMovimiento.create({
             data: {
               insumoId: insumo.id,
@@ -135,7 +129,7 @@ export class PedidosService {
     });
   }
 
-  // Actualizar el estado del pedido (PENDIENTE -> EN_PREPARACION -> LISTO -> ENTREGADO -> CANCELADO)
+  // actualizacion de estado del pedido
   async actualizarEstado(id: number, nuevoEstado: EstadoPedido) {
     const pedido = await this.prisma.pedido.findUnique({ where: { id } });
     if (!pedido) {

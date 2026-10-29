@@ -126,9 +126,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  // ==========================================
-  // CHECKOUT Y FACTURACIÓN (RF-09 a RF-14)
-  // ==========================================
+  // caja y facturacion
   getComprobantes: () => request<Comprobante[]>('/comprobantes'),
   getComprobante: (id: number) => request<Comprobante>(`/comprobantes/${id}`),
   getResumenCajaDiario: () => request<ResumenCajaDiario>('/comprobantes/resumen/diario'),

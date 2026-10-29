@@ -53,7 +53,6 @@ export class InsumosService {
     });
   }
 
-  // RF-17: Historial de Kárdex por insumo
   getKardex(insumoId: number) {
     return this.prisma.kardexMovimiento.findMany({
       where: { insumoId },
@@ -65,7 +64,6 @@ export class InsumosService {
     });
   }
 
-  // RF-17: Historial global de movimientos de Kárdex
   getKardexGlobal() {
     return this.prisma.kardexMovimiento.findMany({
       orderBy: { fechaRegistro: 'desc' },
@@ -77,7 +75,7 @@ export class InsumosService {
     });
   }
 
-  // RF-12: Alertas automáticas de stock mínimo
+  // alertas de stock minimo
   async getAlertasStockMinimo() {
     const insumos = await this.prisma.insumo.findMany({
       orderBy: { nombre: 'asc' }
@@ -85,7 +83,7 @@ export class InsumosService {
     return insumos.filter(i => Number(i.stockActual) <= Number(i.stockMinimo));
   }
 
-  // RF-13: Alertas tempranas de insumos próximos a caducar
+  // alertas de lotes proximos a caducar
   async getAlertasPorVencer(diasLimite: number = 7) {
     const fechaLimite = new Date();
     fechaLimite.setDate(fechaLimite.getDate() + diasLimite);
@@ -100,7 +98,7 @@ export class InsumosService {
     });
   }
 
-  // RF-14: Registro y justificación de mermas y productos en mal estado
+  // registro de mermas y ajuste en kardex
   async registrarMerma(insumoId: number, dto: { cantidad: number; motivo: string; usuarioId?: number }) {
     if (!dto.motivo || dto.motivo.trim() === '') {
       throw new BadRequestException('El motivo de la merma es obligatorio');
@@ -115,7 +113,6 @@ export class InsumosService {
         throw new BadRequestException(`No se puede registrar merma mayor al stock disponible (${insumo.stockActual})`);
       }
 
-      // Validar usuario
       let userValidoId = dto.usuarioId;
       if (userValidoId) {
         const existe = await tx.usuario.findUnique({ where: { id: userValidoId } });
@@ -149,7 +146,7 @@ export class InsumosService {
     });
   }
 
-  // RF-15: Ajuste manual de inventario derivado de conteo físico
+  // ajuste manual de stock por conteo fisico
   async ajustarStock(insumoId: number, dto: { cantidad: number; motivo: string; usuarioId?: number }) {
     return this.prisma.$transaction(async (tx) => {
       const insumo = await tx.insumo.findUnique({ where: { id: insumoId } });

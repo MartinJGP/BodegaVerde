@@ -27,7 +27,6 @@ export class ComprobantesService {
     private readonly pedidosGateway: PedidosGateway,
   ) {}
 
-  // Listar todos los comprobantes emitidos (para auditoría y arqueo de caja)
   async findAll() {
     return this.prisma.comprobante.findMany({
       include: {
@@ -44,7 +43,6 @@ export class ComprobantesService {
     });
   }
 
-  // Obtener un comprobante por ID
   async findOne(id: number) {
     const comp = await this.prisma.comprobante.findUnique({
       where: { id },
@@ -67,7 +65,7 @@ export class ComprobantesService {
     return comp;
   }
 
-  // Resumen del día para arqueo de caja (RF-13)
+  // arqueo diario de caja
   async getResumenDiario() {
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
@@ -112,10 +110,9 @@ export class ComprobantesService {
     };
   }
 
-  // Emitir comprobante, registrar pagos y liberar mesa (RF-11, RF-12, RF-14)
+  // emision fiscal, pago y liberacion de mesa
   async emitirComprobante(dto: CreateComprobanteInput) {
     return this.prisma.$transaction(async (tx) => {
-      // 1. Validar existencia del pedido
       const pedido = await tx.pedido.findUnique({
         where: { id: dto.pedidoId },
         include: { mesa: true, comprobante: true },
@@ -135,7 +132,6 @@ export class ComprobantesService {
         throw new BadRequestException(`El pedido #${dto.pedidoId} ya se encuentra pagado`);
       }
 
-      // 2. Validar o asignar Cajero
       let cajeroId = dto.cajeroId;
       if (cajeroId) {
         const existe = await tx.usuario.findUnique({ where: { id: cajeroId } });
@@ -147,12 +143,12 @@ export class ComprobantesService {
         cajeroId = cajeroUser?.id || adminUser?.id || 1;
       }
 
-      // 3. Cálculos tributarios (SUNAT 18% IGV)
+      // calculo de base e igv 18%
       const total = Number(pedido.total);
       const subtotal = Number((total / 1.18).toFixed(2));
       const igv = Number((total - subtotal).toFixed(2));
 
-      // 4. Calcular correlativo incremental por tipo
+      // correlativo por serie
       const serie = dto.tipo === TipoComprobante.FACTURA ? 'F001' : 'B001';
       const ultimo = await tx.comprobante.findFirst({
         where: { tipo: dto.tipo, serie },
@@ -160,7 +156,6 @@ export class ComprobantesService {
       });
       const numeroCorrelativo = ultimo ? ultimo.numeroCorrelativo + 1 : 1;
 
-      // 5. Crear el comprobante
       const comprobante = await tx.comprobante.create({
         data: {
           pedidoId: pedido.id,
@@ -190,7 +185,6 @@ export class ComprobantesService {
         },
       });
 
-      // 6. Marcar Pedido como PAGADO y registrar fecha de cierre
       const pedidoActualizado = await tx.pedido.update({
         where: { id: pedido.id },
         data: {
@@ -200,7 +194,7 @@ export class ComprobantesService {
         include: { mesa: true },
       });
 
-      // 7. Liberar la mesa si no hay otros pedidos abiertos en ella (RF-14)
+      // liberar mesa si no hay otras comandas abiertas
       const otrosPedidosAbiertos = await tx.pedido.count({
         where: {
           mesaId: pedido.mesaId,
@@ -217,7 +211,6 @@ export class ComprobantesService {
         });
       }
 
-      // 8. Emitir notificaciones WebSocket en tiempo real
       this.pedidosGateway.notificarActualizacionEstado(pedidoActualizado);
       if (mesaLiberada) {
         this.pedidosGateway.notificarMesaActualizada(mesaLiberada);

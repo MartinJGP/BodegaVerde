@@ -53,7 +53,7 @@ export class PlatosService {
     });
   }
 
-  // RF-02 y RF-03: Verificar disponibilidad de platos en tiempo real y auto-bloquear
+  // validacion de stock de insumos por plato
   async verificarDisponibilidad(id: number) {
     const plato = await this.findOne(id);
     let tieneStockSuficiente = true;
@@ -70,7 +70,7 @@ export class PlatosService {
       }
     }
 
-    // Auto-bloqueo en tiempo real si falta algún ingrediente crítico
+    // desactivacion automatica por falta de insumos
     if (!tieneStockSuficiente && plato.activo) {
       await this.prisma.plato.update({
         where: { id },
@@ -86,17 +86,15 @@ export class PlatosService {
     };
   }
 
-  // RF-16: Configurar ficha técnica / receta de un plato
+  // actualizacion de receta en transaccion
   async configurarReceta(platoId: number, ingredientes: { insumoId: number; cantidadRequerida: number }[]) {
     await this.findOne(platoId);
 
     return this.prisma.$transaction(async (tx) => {
-      // Eliminar receta anterior si existe
       await tx.recetaDetalle.deleteMany({
         where: { platoId }
       });
 
-      // Insertar nuevos ingredientes de la ficha técnica
       await tx.recetaDetalle.createMany({
         data: ingredientes.map(item => ({
           platoId,

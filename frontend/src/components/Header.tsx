@@ -39,7 +39,6 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Selector de Vistas: Mesero, Cocina KDS y Caja / Checkout */}
         <nav className="flex items-center rounded-lg bg-sand-100 p-1 border border-sand-200/80">
           <button
             onClick={() => onSelectTab('mesero')}
@@ -67,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <ChefHat className="h-3.5 w-3.5" />
-            <span>Cocina KDS</span>
+            <span>Cocina</span>
           </button>
 
           <button

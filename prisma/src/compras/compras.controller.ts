@@ -16,7 +16,6 @@ export class ComprasController {
     return this.comprasService.findOne(+id);
   }
 
-  // RF-10: Elaborar órdenes de compra
   @Post()
   crearOrden(@Body() dto: any, @Req() req: any) {
     const usuarioId = req.user?.userId || dto.usuarioId || 1;
@@ -28,7 +27,6 @@ export class ComprasController {
     return this.comprasService.actualizarEstado(+id, estado);
   }
 
-  // RF-11: Registrar recepción de insumos físicos con lote y fecha de vencimiento
   @Post(':id/recepcion')
   recepcionarInsumos(@Param('id') id: string, @Body() dto: any, @Req() req: any) {
     const usuarioId = req.user?.userId || dto.usuarioId || 1;
