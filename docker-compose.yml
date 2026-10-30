@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  # ------------------------------------------
+  # Backend API (NestJS + Prisma + Socket.io)
+  # ------------------------------------------
+  backend:
+    build:
+      context: ./prisma
+      dockerfile: Dockerfile
+    container_name: bodega_verde_backend
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres.yajtvhdfbrrrckhpculk:Sandking%232711@aws-0-us-east-1.pooler.supabase.com:5432/postgres}
+      - JWT_SECRET=${JWT_SECRET:-bodega_verde_secret_key_2026}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/platos"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ------------------------------------------
+  # Frontend Web (Next.js 14)
+  # ------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: bodega_verde_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:3001
+      - NEXT_PUBLIC_WS_URL=http://localhost:3001
+    depends_on:
+      - backend
