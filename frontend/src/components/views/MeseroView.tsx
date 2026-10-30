@@ -195,19 +195,14 @@ export const MeseroView: React.FC<MeseroViewProps> = ({
         <div className="mb-6 rounded-xl border border-amberPastel-300 bg-amberPastel-50/90 p-4 shadow-sm animate-feedback">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-amberPastel-200">
             <div className="flex items-center space-x-2.5">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amberPastel-200 text-amberPastel-800">
-                <BellRing className="h-4 w-4 animate-pulse" />
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amberPastel-200 text-amberPastel-800">
+                <BellRing className="h-4.5 w-4.5 animate-pulse" />
               </span>
-              <div>
-                <h3 className="text-xs font-semibold text-charcoal-900">
-                  Comandas listas en cocina para recoger ({pedidosListos.length})
-                </h3>
-                <p className="text-[11px] text-charcoal-700/70">
-                  Platos listos en barra esperando despacho a los comensales
-                </p>
-              </div>
+              <h3 className="text-sm sm:text-base font-bold text-charcoal-900">
+                Comandas listas en cocina para recoger ({pedidosListos.length})
+              </h3>
             </div>
-            <span className="self-start sm:self-auto rounded-full bg-amberPastel-200 px-2.5 py-0.5 text-[10px] font-semibold text-amberPastel-800">
+            <span className="self-start sm:self-auto rounded-full bg-amberPastel-200 px-3 py-1 text-xs font-semibold text-amberPastel-800">
               Atención requerida
             </span>
           </div>
@@ -485,9 +480,6 @@ export const MeseroView: React.FC<MeseroViewProps> = ({
                   ¡Platos listos para entregar en Mesa #{selectedMesa?.numero}!
                 </h3>
               </div>
-              <p className="mt-1 text-xs text-charcoal-600">
-                Lleve los platos a los comensales y confirme la entrega
-              </p>
 
               <div className="mt-3.5 space-y-2.5">
                 {pedidosListosMesaActual.map((p) => (
@@ -546,11 +538,8 @@ export const MeseroView: React.FC<MeseroViewProps> = ({
                   En preparación
                 </span>
               </div>
-              <p className="mt-1.5 text-xs text-charcoal-600">
-                El equipo de cocina está preparando los platos de esta mesa:
-              </p>
 
-              <div className="mt-3 space-y-2.5">
+              <div className="mt-3.5 space-y-2.5">
                 {pedidosCocinandoMesaActual.map((p) => (
                   <div
                     key={p.id}
