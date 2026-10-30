@@ -1,4 +1,4 @@
-# 🌿 La Bodega Verde — Sistema de Gestión Gastronómica
+# 🌿 La Bodega Verde — Sistema Web para la Gestión de Comandas y Facturación
 
 Sistema web integral en tiempo real para la gestión operativa de restaurante y cafetería, diseñado con arquitectura desacoplada: **Frontend en Next.js 14** (App Router, Tailwind CSS, Lucide Icons, WebSockets) y **Backend en NestJS** con **Prisma ORM** y **PostgreSQL (Supabase)**.
 
@@ -12,7 +12,7 @@ BodegaVerde/
 │   ├── src/
 │   │   ├── app/              # Páginas y layout global
 │   │   ├── components/       # Modales, cabecera, alertas sonoras
-│   │   │   └── views/        # Vistas: MeseroView, CocinaView, AdminView
+│   │   │   └── views/        # Vistas: MeseroView, CocinaView, CheckoutView (Caja)
 │   │   ├── lib/              # Cliente API REST y WebSockets (Socket.io)
 │   │   └── types/            # Definiciones de TypeScript
 │   ├── vercel.json           # Configuración optimizada para Vercel
@@ -20,8 +20,8 @@ BodegaVerde/
 │
 ├── prisma/                   # Backend API (NestJS + Prisma + Socket.io Gateway)
 │   ├── prisma/               # Esquema de base de datos y migraciones
-│   │   └── schema.prisma     # Modelos: Mesa, Pedido, DetallePedido, Plato, Insumo, Kardex
-│   ├── src/                  # Módulos: pedidos, mesas, platos, insumos, auth, websockets
+│   │   └── schema.prisma     # Modelos: Mesa, Pedido, DetallePedido, Plato, Comprobante, Pago, Usuario
+│   ├── src/                  # Módulos: pedidos, comprobantes, mesas, platos, auth, websockets
 │   └── package.json
 │
 ├── iniciar-proyecto.bat      # Script automatizado para inicio en Windows
@@ -33,19 +33,22 @@ BodegaVerde/
 ## 📋 Módulos y Funcionalidades
 
 ### 1. 🍽️ Terminal de Mesero (POS Táctil)
-- **Gestión visual de mesas:** Estados en tiempo real (*Libre*, *Ocupada*, *Esperando Pago*).
-- **Toma ágil de pedidos:** Navegación por categorías (Entradas, Fondos, Bebidas, Postres) con notas personalizadas para cocina.
-- **Notificaciones sonoras y visuales:** Alerta instantánea vía WebSockets cuando cocina marca un pedido como *"LISTO"* o en preparación.
-- **Liberación de mesas:** Opción para desocupar mesas una vez concluida la atención.
+- **Gestión visual de mesas:** Estados en tiempo real (*Disponible*, *Ocupada*, *En Pago*).
+- **Toma ágil de pedidos:** Navegación por categorías con notas personalizadas para cocina.
+- **Notificaciones sonoras y visuales:** Alerta instantánea vía WebSockets cuando cocina marca un pedido como *"LISTO"*.
+- **Control de estado:** Consulta de estado de comanda y alertas de mesas activas.
 
-### 2. 👨‍🍳 Cocina (KDS - Kitchen Display System)
-- **Cola de comandas en vivo:** Actualización en tiempo real sin recargar página.
-- **Flujo de estados:** *Pendiente* ➔ *Cocinando* ➔ *Listo* ➔ *Entregado*.
-- **Alertas de tiempo:** Indicadores de demoras y preparación.
+### 2. 👨‍🍳 Pantalla de Cocina
+- **Cola de comandas en vivo:** Actualización en tiempo real sin recargar página vía WebSockets.
+- **Flujo de estados:** *Pendiente* ➔ *En Preparación* ➔ *Listo*.
+- **Gestión visual de preparación:** Identificación de platos, cantidades y especificaciones del cliente.
 
-### 3. 📦 Inventario y Kardex (Almacén)
-- Control de insumos, stock mínimo y alertas automáticas.
-- Registro de movimientos kardex (Entradas, Salidas, Mermas y Ajustes).
+### 3. 💳 Terminal de Caja (Checkout & Facturación)
+- **Pre-cuenta en mesa:** Visualización detallada de consumos con desglose fiscal (Base Imponible e I.G.V. 18%).
+- **Emisión de comprobantes:** Generación de Boletas de Venta (`B001`) y Facturas Electrónicas (`F001`) con correlativo automático.
+- **Cobro multi-método:** Pago en Efectivo con cálculo inteligente de vuelto, Tarjeta, Yape y Plin con número de operación.
+- **Liberación de mesa en tiempo real:** Cierre de cuenta y cambio automático del estado de la mesa a *Disponible* vía WebSockets.
+- **Historial y Arqueo de Caja:** Auditoría de comprobantes emitidos y balance recaudado por método de pago.
 
 ---
 

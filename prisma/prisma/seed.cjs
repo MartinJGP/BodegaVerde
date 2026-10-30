@@ -64,6 +64,15 @@ async function main() {
     },
   });
 
+  const cajero = await prisma.usuario.create({
+    data: {
+      nombre: 'Cajero Principal',
+      email: 'caja@bodegaverde.pe',
+      passwordHash,
+      rol: 'CAJERO',
+    },
+  });
+
   // 2. MESAS (Mesas de salón, terraza y barra)
   console.log('3. Creando mesas del local...');
   const mesas = await Promise.all([
