@@ -1,17 +1,16 @@
 'use client';
 
 import React from 'react';
-import { ChefHat, ClipboardList, Receipt, User } from 'lucide-react';
+import { ChefHat, ClipboardList, User } from 'lucide-react';
 import { Rol } from '@/types';
 
 interface HeaderProps {
-  currentTab: 'mesero' | 'cocina' | 'checkout';
-  onSelectTab: (tab: 'mesero' | 'cocina' | 'checkout') => void;
+  currentTab: 'mesero' | 'cocina';
+  onSelectTab: (tab: 'mesero' | 'cocina') => void;
   currentUser: { nombre: string; rol: Rol } | null;
   onOpenLogin: () => void;
   isConnected: boolean;
   pedidosListosCount?: number;
-  cuentasPendientesCount?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -21,7 +20,6 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenLogin,
   isConnected,
   pedidosListosCount = 0,
-  cuentasPendientesCount = 0,
 }) => {
   return (
     <header className="sticky top-0 z-30 border-b border-sand-200 bg-white/95 backdrop-blur-sm">
@@ -67,23 +65,6 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <ChefHat className="h-3.5 w-3.5" />
             <span>Cocina</span>
-          </button>
-
-          <button
-            onClick={() => onSelectTab('checkout')}
-            className={`relative flex items-center space-x-2 rounded-md px-3 py-1.5 text-xs font-medium btn-action ${
-              currentTab === 'checkout'
-                ? 'bg-white text-sage-700 shadow-sm'
-                : 'text-charcoal-700 hover:text-charcoal-900'
-            }`}
-          >
-            <Receipt className="h-3.5 w-3.5" />
-            <span>Caja</span>
-            {cuentasPendientesCount > 0 && (
-              <span className="ml-1 inline-flex items-center justify-center rounded-full bg-sage-200 px-1.5 py-0.5 text-[10px] font-bold text-sage-800">
-                {cuentasPendientesCount}
-              </span>
-            )}
           </button>
         </nav>
 

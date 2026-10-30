@@ -6,7 +6,7 @@ import { LoginModal } from '@/components/LoginModal';
 import { NotificationToast } from '@/components/NotificationToast';
 import { MeseroView } from '@/components/views/MeseroView';
 import { CocinaView } from '@/components/views/CocinaView';
-import { CheckoutView } from '@/components/views/CheckoutView';
+// import { CheckoutView } from '@/components/views/CheckoutView';
 import { api } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
 import { soundManager } from '@/lib/audio';
@@ -20,7 +20,7 @@ import {
 } from '@/types';
 
 export default function Home() {
-  const [currentTab, setCurrentTab] = useState<'mesero' | 'cocina' | 'checkout'>('mesero');
+  const [currentTab, setCurrentTab] = useState<'mesero' | 'cocina'>('mesero');
   const [currentUser, setCurrentUser] = useState<{ nombre: string; rol: Rol } | null>({
     nombre: 'Carlos Mesero',
     rol: 'MESERO',
@@ -195,7 +195,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-sand-50 flex flex-col">
-      {/* Barra Superior con selector de Mesero, Cocina y Caja / Checkout */}
+      {/* Barra Superior con selector de Mesero y Cocina */}
       <Header
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
@@ -203,7 +203,6 @@ export default function Home() {
         onOpenLogin={() => setIsLoginOpen(true)}
         isConnected={isConnected}
         pedidosListosCount={pedidosListosCount}
-        cuentasPendientesCount={cuentasPendientesCount}
       />
 
       {/* Contenido Principal */}
@@ -232,15 +231,6 @@ export default function Home() {
 
             {currentTab === 'cocina' && (
               <CocinaView initialPedidos={pedidos} showToast={showToast} />
-            )}
-
-            {currentTab === 'checkout' && (
-              <CheckoutView
-                mesas={mesas}
-                pedidos={pedidos}
-                onCobroCompletado={loadInitialData}
-                showToast={showToast}
-              />
             )}
           </>
         )}
