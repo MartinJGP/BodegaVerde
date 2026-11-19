@@ -1,0 +1,122 @@
+@startuml
+skinparam DefaultFontName Arial
+skinparam roundcorner 8
+skinparam linetype ortho
+skinparam shadowing false
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D5A27
+    HeaderBackgroundColor #E8F0E6
+    FontSize 12
+    AttributeFontSize 11
+}
+
+skinparam packageBackgroundColor #FAFCFA
+skinparam packageBorderColor #8E9B90
+
+title <size:17><b>Modelo Conceptual de Datos (CDM)</b></size>\n<size:12>Sistema Gastronómico La Bodega Verde (Comandas y Facturación)</size>
+
+package "Entidades del Dominio de Negocio" {
+
+    class "USUARIO" as Usuario <<Entidad>> {
+        # id_usuario (Identificador)
+        --
+        nombre
+        email
+        rol
+        estado_activo
+    }
+
+    class "MESA" as Mesa <<Entidad>> {
+        # numero_mesa (Identificador)
+        --
+        capacidad_comensales
+        estado_atencion
+    }
+
+    class "CATEGORIA" as Categoria <<Entidad>> {
+        # id_categoria (Identificador)
+        --
+        nombre_categoria
+        descripcion
+    }
+
+    class "PLATO" as Plato <<Entidad>> {
+        # id_plato (Identificador)
+        --
+        nombre_plato
+        precio_carta
+        descripcion
+        disponibilidad
+    }
+
+    class "PEDIDO" as Pedido <<Entidad>> {
+        # numero_pedido (Identificador)
+        --
+        estado_comanda
+        importe_total
+        fecha_creacion
+        fecha_cierre
+    }
+
+    class "DETALLE_PEDIDO" as DetallePedido <<Entidad Débil>> {
+        # linea_pedido (Identificador)
+        --
+        cantidad
+        precio_unitario
+        nota_preparacion
+    }
+
+    class "COMPROBANTE" as Comprobante <<Entidad>> {
+        # id_comprobante (Identificador)
+        --
+        tipo_documento
+        serie_correlativo
+        cliente_nombre
+        cliente_documento
+        subtotal_gravado
+        impuesto_igv
+        importe_total
+        fecha_emision
+    }
+
+    class "PAGO" as Pago <<Entidad>> {
+        # id_transaccion (Identificador)
+        --
+        metodo_pago
+        monto_pagado
+        monto_recibido
+        vuelto_entregado
+        codigo_referencia
+        fecha_pago
+    }
+}
+
+' Relaciones Semanticas de Negocio (Verbos, Cardinalidades min..max)
+Categoria "1" --- "1..*" Plato : clasifica >
+Mesa "1" --- "0..*" Pedido : aloja >
+Usuario "1" --- "0..*" Pedido : registra >
+
+Pedido "1" --- "1..*" DetallePedido : contiene >
+Plato "1" --- "0..*" DetallePedido : es_solicitado_en >
+
+Pedido "1" --- "0..1" Comprobante : liquida_en >
+Usuario "1" --- "0..*" Comprobante : emite >
+
+Comprobante "1" --- "1..*" Pago : se_abona_con >
+
+note right of DetallePedido
+  <b>Regla Conceptual:</b>
+  Entidad débil por identificación:
+  representa el consumo específico de
+  un plato dentro de una comanda.
+end note
+
+note right of Comprobante
+  <b>Regla Conceptual:</b>
+  Un pedido genera como máximo 1 comprobante
+  fiscal (Boleta o Factura).
+end note
+
+@enduml

@@ -1,0 +1,136 @@
+@startuml
+skinparam DefaultFontName Arial
+skinparam roundcorner 5
+skinparam linetype ortho
+skinparam shadowing false
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D5A27
+    HeaderBackgroundColor #E8F0E6
+    FontSize 11
+    AttributeFontSize 10
+}
+
+skinparam packageBackgroundColor #FAFCFA
+skinparam packageBorderColor #8E9B90
+skinparam packageFontStyle bold
+
+title <size:17><b>Modelo Lógico de Datos (LDM) - 3FN</b></size>\n<size:12>Esquema Relacional Independiente de SGBD con Notación Pata de Gallo (Crow's Foot)</size>
+
+package "Módulo: Catálogo y Salón" {
+    entity "CATEGORIAS" as Categorias {
+        + id : Integer [PK]
+        --
+        * nombre : String(100)
+        descripcion : String(255)
+    }
+
+    entity "PLATOS" as Platos {
+        + id : Integer [PK]
+        --
+        * categoria_id : Integer [FK]
+        * nombre : String(150)
+        * precio : Decimal(10,2)
+        descripcion : String(255)
+        * activo : Boolean
+    }
+
+    entity "MESAS" as Mesas {
+        + id : Integer [PK]
+        --
+        * numero : Integer [UNIQUE]
+        * capacidad : Integer
+        * estado : Enum ('DISPONIBLE','OCUPADA','EN_PAGO')
+    }
+}
+
+package "Módulo: Usuarios y Accesos" {
+    entity "USUARIOS" as Usuarios {
+        + id : Integer [PK]
+        --
+        * nombre : String(150)
+        * email : String(255) [UNIQUE]
+        * password_hash : String(255)
+        * rol : Enum ('ADMIN','MESERO','COCINERO','CAJERO')
+        * activo : Boolean
+    }
+}
+
+package "Módulo: Comandas en Tiempo Real" {
+    entity "PEDIDOS" as Pedidos {
+        + id : Integer [PK]
+        --
+        * mesa_id : Integer [FK]
+        * usuario_id : Integer [FK]
+        * estado : Enum ('PENDIENTE','EN_PREPARACION','LISTO','ENTREGADO','PAGADO','CANCELADO')
+        * total : Decimal(10,2)
+        * fecha_creacion : DateTime
+        fecha_cierre : DateTime
+    }
+
+    entity "PEDIDOS_DETALLE" as PedidosDetalle {
+        + id : Integer [PK]
+        --
+        * pedido_id : Integer [FK]
+        * plato_id : Integer [FK]
+        * cantidad : Integer
+        * precio_unitario : Decimal(10,2)
+        notas_personalizadas : String(255)
+    }
+}
+
+package "Módulo: Facturación y Checkout" {
+    entity "COMPROBANTES" as Comprobantes {
+        + id : Integer [PK]
+        --
+        * pedido_id : Integer [FK, UNIQUE]
+        cajero_id : Integer [FK]
+        * tipo : Enum ('BOLETA','FACTURA')
+        * serie : String(10)
+        * numero_correlativo : Integer
+        cliente_nombre : String(200)
+        cliente_documento : String(20)
+        * subtotal : Decimal(10,2)
+        * igv : Decimal(10,2)
+        * total : Decimal(10,2)
+        * fecha_emision : DateTime
+        * estado : Enum ('EMITIDO','ANULADO')
+    }
+
+    entity "PAGOS" as Pagos {
+        + id : Integer [PK]
+        --
+        * comprobante_id : Integer [FK]
+        * metodo_pago : Enum ('EFECTIVO','TARJETA','YAPE','PLIN')
+        * monto : Decimal(10,2)
+        monto_recibido : Decimal(10,2)
+        vuelto : Decimal(10,2)
+        referencia : String(100)
+        * fecha_pago : DateTime
+    }
+}
+
+' Relaciones Relacionales (Notacion Pata de Gallo)
+Categorias ||--|{ Platos : "1 categoria clasifica 1..N platos"
+
+Mesas ||--o{ Pedidos : "1 mesa registra 0..N pedidos"
+Usuarios ||--o{ Pedidos : "1 mesero atiende 0..N pedidos"
+
+Pedidos ||--|{ PedidosDetalle : "1 pedido desglosa 1..N detalles"
+Platos ||--o{ PedidosDetalle : "1 plato figura en 0..N detalles"
+
+Pedidos ||--o| Comprobantes : "1 pedido genera 0..1 comprobante"
+Usuarios ||--o{ Comprobantes : "1 cajero emite 0..N comprobantes"
+
+Comprobantes ||--|{ Pagos : "1 comprobante liquida con 1..N pagos"
+
+note bottom of PedidosDetalle
+  <b>Normalización 3FN:</b>
+  * 1FN: Atributos atómicos indivisibles.
+  * 2FN: Dependencia funcional completa de la PK.
+  * 3FN: precio_unitario se conserva como snapshot
+    para evitar dependencia transitiva si cambia el precio del plato.
+end note
+
+@enduml

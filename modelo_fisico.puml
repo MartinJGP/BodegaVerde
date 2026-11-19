@@ -1,0 +1,142 @@
+@startuml
+skinparam DefaultFontName Arial
+skinparam roundcorner 5
+skinparam linetype ortho
+skinparam shadowing false
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D5A27
+    HeaderBackgroundColor #E8F0E6
+    FontSize 10
+    AttributeFontSize 9
+}
+
+skinparam packageBackgroundColor #FAFCFA
+skinparam packageBorderColor #8E9B90
+skinparam packageFontStyle bold
+
+title <size:17><b>Modelo Físico de Base de Datos (PDM)</b></size>\n<size:12>SGBD: PostgreSQL 16 (Supabase Cloud AWS) - Tipos Nativos, Constraints e Índices</size>
+
+package "public (PostgreSQL Schema)" {
+
+    entity "usuarios" as tbl_usuarios {
+        + id : SERIAL <<PK>>
+        --
+        * nombre : VARCHAR(255)
+        * email : VARCHAR(255) <<UQ_usuarios_email>>
+        * password_hash : VARCHAR(255)
+        * rol : rol_usuario_enum
+        * activo : BOOLEAN DEFAULT true
+    }
+
+    entity "mesas" as tbl_mesas {
+        + id : SERIAL <<PK>>
+        --
+        * numero : INTEGER <<UQ_mesas_numero>>
+        * capacidad : SMALLINT CHECK (capacidad > 0)
+        * estado : estado_mesa_enum DEFAULT 'DISPONIBLE'
+    }
+
+    entity "categorias" as tbl_categorias {
+        + id : SERIAL <<PK>>
+        --
+        * nombre : VARCHAR(100)
+        descripcion : TEXT
+    }
+
+    entity "platos" as tbl_platos {
+        + id : SERIAL <<PK>>
+        --
+        * categoria_id : INTEGER <<FK_platos_categoria>>
+        * nombre : VARCHAR(150)
+        * precio : NUMERIC(10,2) CHECK (precio >= 0)
+        descripcion : TEXT
+        * activo : BOOLEAN DEFAULT true
+        --
+        <<INDEX>> idx_platos_categoria_id
+    }
+
+    entity "pedidos" as tbl_pedidos {
+        + id : SERIAL <<PK>>
+        --
+        * mesa_id : INTEGER <<FK_pedidos_mesa>>
+        * usuario_id : INTEGER <<FK_pedidos_usuario>>
+        * estado : estado_pedido_enum DEFAULT 'PENDIENTE'
+        * total : NUMERIC(10,2) DEFAULT 0.00
+        * fecha_creacion : TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        fecha_cierre : TIMESTAMPTZ
+        --
+        <<INDEX>> idx_pedidos_mesa_id
+        <<INDEX>> idx_pedidos_estado
+        <<INDEX>> idx_pedidos_fecha
+    }
+
+    entity "pedidos_detalle" as tbl_pedidos_detalle {
+        + id : SERIAL <<PK>>
+        --
+        * pedido_id : INTEGER <<FK_detalles_pedido, ON DELETE CASCADE>>
+        * plato_id : INTEGER <<FK_detalles_plato>>
+        * cantidad : INTEGER CHECK (cantidad > 0)
+        * precio_unitario : NUMERIC(10,2)
+        notas_personalizadas : VARCHAR(255)
+        --
+        <<INDEX>> idx_pedidos_detalle_pedido_id
+    }
+
+    entity "comprobantes" as tbl_comprobantes {
+        + id : SERIAL <<PK>>
+        --
+        * pedido_id : INTEGER <<FK_comprobante_pedido, UQ_comprobante_pedido>>
+        cajero_id : INTEGER <<FK_comprobante_cajero, ON DELETE SET NULL>>
+        * tipo : tipo_comprobante_enum DEFAULT 'BOLETA'
+        * serie : VARCHAR(10) DEFAULT 'B001'
+        * numero_correlativo : INTEGER
+        cliente_nombre : VARCHAR(200)
+        cliente_documento : VARCHAR(20)
+        * subtotal : NUMERIC(10,2)
+        * igv : NUMERIC(10,2)
+        * total : NUMERIC(10,2)
+        * fecha_emision : TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        * estado : estado_comprobante_enum DEFAULT 'EMITIDO'
+        --
+        <<UQ>> uq_comprobante_serie_correlativo (serie, numero_correlativo)
+        <<INDEX>> idx_comprobantes_fecha_emision
+    }
+
+    entity "pagos" as tbl_pagos {
+        + id : SERIAL <<PK>>
+        --
+        * comprobante_id : INTEGER <<FK_pagos_comprobante, ON DELETE CASCADE>>
+        * metodo_pago : metodo_pago_enum
+        * monto : NUMERIC(10,2) CHECK (monto > 0)
+        monto_recibido : NUMERIC(10,2)
+        vuelto : NUMERIC(10,2)
+        referencia : VARCHAR(100)
+        * fecha_pago : TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        --
+        <<INDEX>> idx_pagos_comprobante_id
+    }
+}
+
+' Claves Foraneas Fisicas con Accion Referencial
+tbl_categorias ||--|{ tbl_platos : "FK: categoria_id -> categorias(id)"
+tbl_mesas ||--o{ tbl_pedidos : "FK: mesa_id -> mesas(id) [ON DELETE RESTRICT]"
+tbl_usuarios ||--o{ tbl_pedidos : "FK: usuario_id -> usuarios(id) [ON DELETE RESTRICT]"
+
+tbl_pedidos ||--|{ tbl_pedidos_detalle : "FK: pedido_id -> pedidos(id) [ON DELETE CASCADE]"
+tbl_platos ||--o{ tbl_pedidos_detalle : "FK: plato_id -> platos(id) [ON DELETE RESTRICT]"
+
+tbl_pedidos ||--o| tbl_comprobantes : "FK: pedido_id -> pedidos(id) [UNIQUE]"
+tbl_usuarios ||--o{ tbl_comprobantes : "FK: cajero_id -> usuarios(id) [ON DELETE SET NULL]"
+
+tbl_comprobantes ||--|{ tbl_pagos : "FK: comprobante_id -> comprobantes(id) [ON DELETE CASCADE]"
+
+note bottom of tbl_comprobantes
+  <b>Constraints e Integridad PostgreSQL:</b>
+  * Restricción UNIQUE en pedido_id garantiza 1:1.
+  * Índice B-Tree en fecha_emision acelera Arqueo Diario.
+  * Transacciones ACID gestionadas por motor Postgres.
+end note
+
+@enduml
