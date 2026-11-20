@@ -1,0 +1,150 @@
+@startuml
+skinparam dpi 150
+hide circle
+skinparam DefaultFontName "Segoe UI"
+skinparam DefaultFontSize 12
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam shadowing false
+skinparam nodesep 55
+skinparam ranksep 60
+
+' Paleta estilo Draw.io (La Bodega Verde: Verde Botánico & Esmeralda Suave)
+skinparam entity {
+    BackgroundColor #FFFFFF
+    BorderColor #2D5A27
+    HeaderBackgroundColor #D5E8D4
+    HeaderBorderColor #2D5A27
+    FontSize 13
+    FontStyle bold
+    AttributeFontSize 11
+}
+
+skinparam arrow {
+    Color #2D5A27
+    FontColor #1E3F1A
+    FontSize 11
+    Thickness 1.8
+}
+
+skinparam package {
+    BackgroundColor #FAFCFA
+    BorderColor #8E9B90
+    FontSize 13
+    FontStyle bold
+    FontColor #2D5A27
+}
+
+title <size:18><b>Diagrama Entidad - Relación (DER / ERD)</b></size>\n<size:12>Sistema Gastronómico La Bodega Verde — Modelo Relacional para Draw.io (Notación Crow's Foot)</size>
+
+package "1. Catálogo y Menú" {
+    entity "categorias" as categorias {
+        * **id_categoria** : INT <<PK>>
+        --
+        * nombre : VARCHAR(100)
+        descripcion : TEXT
+        * activo : BOOLEAN
+    }
+
+    entity "platos" as platos {
+        * **id_plato** : INT <<PK>>
+        --
+        * id_categoria : INT <<FK>>
+        * nombre : VARCHAR(120)
+        descripcion : TEXT
+        * precio : DECIMAL(10,2)
+        * disponible : BOOLEAN
+        * activo : BOOLEAN
+    }
+}
+
+package "2. Salón y Personal" {
+    entity "mesas" as mesas {
+        * **id_mesa** : INT <<PK>>
+        --
+        * numero : INT <<UNIQUE>>
+        * capacidad : INT
+        * estado : VARCHAR(20)
+        * activo : BOOLEAN
+    }
+
+    entity "usuarios" as usuarios {
+        * **id_usuario** : INT <<PK>>
+        --
+        * nombre : VARCHAR(100)
+        * email : VARCHAR(150) <<UNIQUE>>
+        * password_hash : VARCHAR(255)
+        * rol : VARCHAR(20)
+        * activo : BOOLEAN
+        * created_at : TIMESTAMPTZ
+    }
+}
+
+package "3. Operaciones de Comanda" {
+    entity "pedidos" as pedidos {
+        * **id_pedido** : INT <<PK>>
+        --
+        * id_mesa : INT <<FK>>
+        * id_usuario : INT <<FK>>
+        * estado : VARCHAR(20)
+        * total : DECIMAL(10,2)
+        * created_at : TIMESTAMPTZ
+        * updated_at : TIMESTAMPTZ
+    }
+
+    entity "pedidos_detalle" as pedidos_detalle {
+        * **id_detalle** : INT <<PK>>
+        --
+        * id_pedido : INT <<FK>>
+        * id_plato : INT <<FK>>
+        * cantidad : INT
+        * precio_unitario : DECIMAL(10,2)
+        * subtotal : DECIMAL(10,2)
+        notas : VARCHAR(255)
+    }
+}
+
+package "4. Caja y Facturación" {
+    entity "comprobantes" as comprobantes {
+        * **id_comprobante** : INT <<PK>>
+        --
+        * id_pedido : INT <<FK, UNIQUE>>
+        * id_usuario : INT <<FK>>
+        * tipo : VARCHAR(20)
+        * serie : VARCHAR(4)
+        * numero : VARCHAR(8)
+        * cliente_tipo_doc : VARCHAR(10)
+        * cliente_num_doc : VARCHAR(15)
+        * cliente_nombre : VARCHAR(150)
+        * subtotal : DECIMAL(10,2)
+        * igv : DECIMAL(10,2)
+        * total : DECIMAL(10,2)
+        * estado : VARCHAR(20)
+        * created_at : TIMESTAMPTZ
+    }
+
+    entity "pagos" as pagos {
+        * **id_pago** : INT <<PK>>
+        --
+        * id_comprobante : INT <<FK>>
+        * metodo : VARCHAR(20)
+        * monto : DECIMAL(10,2)
+        referencia : VARCHAR(100)
+        * created_at : TIMESTAMPTZ
+    }
+}
+
+' Relaciones Crow's Foot con descripción clara
+categorias ||--o{ platos : "1:N contiene"
+platos ||--o{ pedidos_detalle : "1:N solicitado en"
+
+mesas ||--o{ pedidos : "1:N aloja"
+usuarios ||--o{ pedidos : "1:N registra (mesero)"
+
+pedidos ||--|{ pedidos_detalle : "1:N desglosa en"
+pedidos ||--o| comprobantes : "1:0..1 liquida en"
+
+usuarios ||--o{ comprobantes : "1:N emite (cajero)"
+comprobantes ||--|{ pagos : "1:N cancela con"
+
+@enduml
