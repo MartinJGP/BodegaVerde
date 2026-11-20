@@ -1,0 +1,159 @@
+@startuml
+skinparam dpi 160
+hide circle
+skinparam DefaultFontName "Segoe UI"
+skinparam DefaultFontSize 11
+skinparam roundcorner 0
+skinparam linetype ortho
+skinparam shadowing false
+skinparam nodesep 50
+skinparam ranksep 60
+
+' Estilo clásico erwin Data Modeler (Theme IE / Information Engineering)
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2B4C6F
+    HeaderBackgroundColor #E8F1F8
+    HeaderBorderColor #2B4C6F
+    FontSize 12
+    FontStyle bold
+    AttributeFontSize 10
+    BorderThickness 1.5
+}
+
+skinparam arrow {
+    Color #1C3B5E
+    FontColor #0C233C
+    FontSize 10
+    Thickness 1.4
+}
+
+skinparam package {
+    BackgroundColor #FAFCFF
+    BorderColor #A3B8CC
+    FontSize 12
+    FontStyle bold
+    FontColor #1C3B5E
+}
+
+title <size:18><b>Modelo Lógico de Datos (LDM) — Estándar erwin Data Modeler</b></size>\n<size:12>Sistema Gastronómico La Bodega Verde — Notación Information Engineering (IE / Crow's Foot) Normalizado en 3FN</size>
+
+package "Módulo: Catálogo y Carta" {
+    entity "CATEGORIA" as Categoria {
+        + id_categoria : Integer <<PK>>
+        --
+        * nombre : String(100)
+        descripcion : String(255)
+        * activo : Boolean
+    }
+
+    entity "PLATO" as Plato {
+        + id_plato : Integer <<PK>>
+        --
+        * id_categoria : Integer <<FK>>
+        * nombre : String(120)
+        descripcion : String(255)
+        * precio : Decimal(10,2)
+        * disponible : Boolean
+        * activo : Boolean
+    }
+}
+
+package "Módulo: Salón y Personal" {
+    entity "MESA" as Mesa {
+        + id_mesa : Integer <<PK>>
+        --
+        * numero : Integer <<AK1>>
+        * capacidad : Integer
+        * estado : String(20)
+        * activo : Boolean
+    }
+
+    entity "USUARIO" as Usuario {
+        + id_usuario : Integer <<PK>>
+        --
+        * nombre : String(100)
+        * email : String(150) <<AK1>>
+        * password_hash : String(255)
+        * rol : String(20)
+        * activo : Boolean
+        * created_at : DateTime
+    }
+}
+
+package "Módulo: Comandas y Atención" {
+    entity "PEDIDO" as Pedido {
+        + id_pedido : Integer <<PK>>
+        --
+        * id_mesa : Integer <<FK>>
+        * id_usuario : Integer <<FK>>
+        * estado : String(20)
+        * total : Decimal(10,2)
+        * created_at : DateTime
+        * updated_at : DateTime
+    }
+
+    entity "PEDIDO_DETALLE" as DetallePedido {
+        + id_detalle : Integer <<PK>>
+        --
+        * id_pedido : Integer <<FK>>
+        * id_plato : Integer <<FK>>
+        * cantidad : Integer
+        * precio_unitario : Decimal(10,2)
+        * subtotal : Decimal(10,2)
+        notas : String(255)
+    }
+}
+
+package "Módulo: Facturación y Cobranzas" {
+    entity "COMPROBANTE" as Comprobante {
+        + id_comprobante : Integer <<PK>>
+        --
+        * id_pedido : Integer <<FK, AK1>>
+        * id_usuario : Integer <<FK>>
+        * tipo : String(20)
+        * serie : String(4)
+        * numero : String(8)
+        cliente_tipo_doc : String(10)
+        cliente_num_doc : String(15)
+        cliente_nombre : String(150)
+        * subtotal : Decimal(10,2)
+        * igv : Decimal(10,2)
+        * total : Decimal(10,2)
+        * estado : String(20)
+        * created_at : DateTime
+    }
+
+    entity "PAGO" as Pago {
+        + id_pago : Integer <<PK>>
+        --
+        * id_comprobante : Integer <<FK>>
+        * metodo : String(20)
+        * monto : Decimal(10,2)
+        referencia : String(100)
+        * created_at : DateTime
+    }
+}
+
+' Relaciones erwin (Non-Identifying 1:N -> líneas discontinuas con Crow's Foot)
+Categoria ||..o{ Plato : "clasifica a"
+Plato ||..o{ DetallePedido : "se solicita en"
+
+Mesa ||..o{ Pedido : "aloja a"
+Usuario ||..o{ Pedido : "registra a (mesero)"
+
+Pedido ||..|{ DetallePedido : "se desglosa en"
+Pedido ||..o| Comprobante : "genera (1 a 0..1)"
+
+Usuario ||..o{ Comprobante : "emite (cajero)"
+Comprobante ||..|{ Pago : "se cancela con"
+
+note bottom of DetallePedido
+  <b>Normalización 3FN en erwin:</b>
+  * <b>1FN:</b> Atributos atómicos indivisibles.
+  * <b>2FN:</b> Dependencia funcional completa de la PK.
+  * <b>3FN:</b> precio_unitario se conserva como snapshot
+    histórico (no depende transitivamente del precio actual de PLATO).
+end note
+
+@enduml
